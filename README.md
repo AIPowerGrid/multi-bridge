@@ -1,11 +1,11 @@
 # SimpleGrid Text Worker
 
-A utility to connect the Horde with ML processing by launching an aphrodite engine (an OpenAI-compatible model server) in a Docker container and then starting a worker process.
+A utility to connect the Grid with ML processing by launching an Aphrodite engine (an OpenAI-compatible model server) in a Docker container and then starting a worker process.
 
 ## Features
 
 - **Docker Launch:**  
-  Launch the aphrodite engine automatically via Docker using settings from `bridgeData.yaml`.
+  Launch the Aphrodite engine automatically via Docker using settings from `bridgeData.yaml`.
 
 - **Old NVIDIA Compute Flag:**  
   If you have an older NVIDIA GPU (for example, a 2080), enable the `old_nvidia_compute` flag so that the engine launches with half-precision (`--dtype half`).
@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 ### Docker
 
-Docker must be installed and available on your PATH. The aphrodite engine runs inside Docker.
+Docker must be installed and available on your PATH. The Aphrodite engine runs inside Docker.
 
 ## Configuration
 
@@ -57,7 +57,7 @@ python start_worker.py
 
 The script will:
 
-1. **Check for the aphrodite engine:**  
+1. **Check for the Aphrodite engine:**  
    If it isn't running on port 2242, the engine is automatically launched in Docker with the specified model and GPU settings.
 
 2. **Show Docker Logs:**  
@@ -68,6 +68,28 @@ The script will:
 
 4. **Launch Worker UI:**  
    Once confirmed, the worker starts, showing ongoing status (such as CPU usage and memory) alongside processing logs in plain mode.
+
+## Managing the Docker Container
+
+When the program starts, it will also start a Docker container as mentioned. However, when you close the program or press `Ctrl+C`, the Docker container will **not** automatically be killed.
+
+The reason for this behavior is to allow quick restarts with the model still loaded in your GPU VRAM, avoiding long reload times.
+
+### Stopping the Docker Container Manually
+
+If you need to stop the running container for any reason, you can use the following commands:
+
+- **View running containers:**
+  ```bash
+  docker ps
+  ```
+  This will list all currently running Docker containers, including the Aphrodite engine.
+
+- **Kill the container:**
+  ```bash
+  docker kill <container_id>
+  ```
+  Replace `<container_id>` with the actual ID (a hash-like string) of the running container from `docker ps`.
 
 ## FAQ
 
@@ -90,3 +112,4 @@ The script will:
 
 - **Configuration Mismatches:**  
   Double-check your `bridgeData.yaml` to ensure that all URLs and settings match your deployment environment.
+
