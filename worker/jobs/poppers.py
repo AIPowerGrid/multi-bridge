@@ -14,7 +14,7 @@ from worker.stats import bridge_stats
 
 class JobPopper:
     retry_interval = 1
-    BRIDGE_AGENT = f"AI Horde Worker:{BRIDGE_VERSION}:https://github.com/db0/AI-Horde-Worker"
+    BRIDGE_AGENT = f"SimpleGrid-Text-Worker:{BRIDGE_VERSION}:https://github.com/db0/AI-Horde-Worker"
 
     def __init__(self, mm, bd):
         self.model_manager = mm
