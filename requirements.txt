@@ -1,0 +1,11 @@
+gradio
+pyyaml
+unidecode
+regex
+pynvml
+psutil
+windows-curses; sys_platform == 'win32'
+loguru
+GitPython
+aphrodite-engine
+GPUtil
