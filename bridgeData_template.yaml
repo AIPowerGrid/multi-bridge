@@ -23,6 +23,13 @@ max_threads: 1
 # Recommended to keep no higher than 1
 queue_size: 0
 
+# The number of GPUs to use. Defaults to 1.
+gpu_count: 1
+
+## Storage
+
+# Directory to download models to. Defaults to the "models" folder(will be created if it doesn't exist) if not set.
+#download_dir: "./models"
 
 ## Text Gen
 

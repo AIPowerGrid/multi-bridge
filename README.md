@@ -43,6 +43,12 @@ All settings are managed in the `bridgeData.yaml` file. An example configuration
 - **worker_name:**  
   A descriptive name for your worker instance.
 
+- **gpu_count:**  
+  The number of GPUs to use. Defaults to 1. Adjust this based on your hardware capabilities to optimize performance.
+
+- **download_dir:**  
+  The directory to download models to. Defaults to the "models" folder(will be created if it doesn't exist) if not set.
+
 - **old_nvidia_compute:**  
   Set to `true` if you have an older NVIDIA GPU (e.g., a 2080) to enable half-precision via the `--dtype half` flag.
 

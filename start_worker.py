@@ -15,6 +15,7 @@ import subprocess
 import sys
 import shutil
 import yaml
+import os
 
 from worker.argparser.scribe import args
 from worker.utils.set_envs import set_worker_env_vars_from_config
@@ -52,32 +53,45 @@ def tail_docker_logs(container_id):
     except Exception as e:
         print("Error tailing docker logs:", e)
 
-def start_aphrodite_engine(model_name, old_nvidia_compute=False, api_key="sk-dummy"):
+def start_aphrodite_engine(model_name, gpu_count=1, old_nvidia_compute=False, download_dir="./models"):
     """
     Launch the aphrodite engine as a Docker container with the specified model.
-    If old_nvidia_compute is True, include the '--dtype half' flag.
+    
+    Args:
+        model_name (str): The model to load.
+        gpu_count (int): Number of GPUs to allocate to the container.
+        old_nvidia_compute (bool): Whether to use old NVIDIA compute settings.
+        download_dir (str): Directory to download models to and mount into Docker.
     """
     if shutil.which("docker") is None:
         print("Error: The 'docker' command is not found in your PATH. Please install Docker.")
         sys.exit(1)
     
+    # Ensure the download directory exists
+    if not os.path.exists(download_dir):
+        os.makedirs(download_dir)
+    
+    # Set the --gpus parameter based on gpu_count
+    gpus_param = f"count={gpu_count}" if gpu_count > 0 else "all"
+    
+    # Build the Docker command with dynamic tensor-parallel-size
     command = [
         "docker", "run", "--rm", "-d",
-        "--gpus", "all",
+        "--gpus", gpus_param,
         "-p", "2242:2242",
         "--ipc=host",
-        "alpindale/aphrodite-openai:latest", # This is the latest version of the aphrodite engine
-        "--model", model_name, # Set from bridgeData.yaml
-        "--tensor-parallel-size", "1", # You can change this if you want to use more than 1 GPU
+        "-v", f"{download_dir}:/app/models",
+        "alpindale/aphrodite-openai:latest",
+        "--model", model_name,
+        "--tensor-parallel-size", str(gpu_count),
+        "--download-dir", "/app/models",
     ]
     
-    # Add "--dtype half" if using an older Nvidia GPU.
     if old_nvidia_compute:
-        command.extend(["--dtype", "half"])
+        command.append("--dtype")
+        command.append("half")
     
-    command.extend([
-        "--launch-kobold-api",
-    ])
+    command.append("--launch-kobold-api")
     
     print("Starting aphrodite engine with command:", " ".join(command))
     result = subprocess.run(command, capture_output=True, text=True)
@@ -85,6 +99,7 @@ def start_aphrodite_engine(model_name, old_nvidia_compute=False, api_key="sk-dum
         print("Failed to launch docker container for aphrodite engine:")
         print(result.stderr)
         sys.exit(1)
+    
     container_id = result.stdout.strip()
     print("Started aphrodite docker container with ID:", container_id)
     
@@ -125,10 +140,17 @@ def main():
     bridge_data.kai_url = config.get('kai_url', bridge_data.horde_url)
     
     old_nvidia_compute = config.get('old_nvidia_compute', False)
+    download_dir = config.get('download_dir', './models')
+    gpu_count = config.get('gpu_count', 1)  # Default to 1 if not specified
     
     if not is_engine_running():
         print("Aphrodite engine is not running. Launching via Docker...")
-        engine_container = start_aphrodite_engine(bridge_data.model_name, old_nvidia_compute, bridge_data.api_key)
+        engine_container = start_aphrodite_engine(
+            bridge_data.model_name, 
+            gpu_count=gpu_count,
+            old_nvidia_compute=old_nvidia_compute, 
+            download_dir=download_dir
+        )
         print("\nAphrodite engine has been launched! Check the logs above for details.")
         input("Press Enter to continue and start the text worker...\n")
     else:
