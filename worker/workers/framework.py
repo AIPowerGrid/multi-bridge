@@ -1,10 +1,10 @@
 """This is the worker, it's the main workhorse that deals with getting requests, and spawning data processing"""
-import sys
 import threading
 import time
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
-from worker.logger import logger
+from loguru import logger
 from worker.stats import bridge_stats
 
 
@@ -39,19 +39,32 @@ class WorkerFramework:
         in_notebook = hasattr(__builtins__, "__IPYTHON__")
         if in_notebook:
             return
+            
+        # Automatically disable terminal UI on Windows platforms
+        if sys.platform.startswith('win'):
+            logger.info("Terminal UI is not available on Windows. Disabling.")
+            return
 
-        if self.bridge_data.disable_terminal_ui:
+        # Check if terminal UI is disabled explicitly
+        if hasattr(self.bridge_data, "disable_terminal_ui") and self.bridge_data.disable_terminal_ui:
+            return
+            
+        # Check for terminal_ui_enabled setting in YAML file (set to false by default)
+        if hasattr(self.bridge_data, "terminal_ui_enabled") and not self.bridge_data.terminal_ui_enabled:
             return
 
         # Don't allow this if auto-downloading is not enabled as how will the user see download prompts?
         if hasattr(self.bridge_data, "always_download") and not self.bridge_data.always_download:
             logger.warning("Terminal UI can not be enabled without also enabling 'always_download'")
         else:
-            from worker.ui import TerminalUI
+            try:
+                from worker.ui import TerminalUI
 
-            self.ui_class = TerminalUI(self.bridge_data)
-            self.ui = threading.Thread(target=self.ui_class.run, daemon=True)
-            self.ui.start()
+                self.ui_class = TerminalUI(self.bridge_data)
+                self.ui = threading.Thread(target=self.ui_class.run, daemon=True)
+                self.ui.start()
+            except ImportError as e:
+                logger.warning(f"Could not initialize Terminal UI: {e}")
 
     def on_restart(self):
         """Called when the worker loop is restarted. Make sure to invoke super().on_restart() when overriding."""

@@ -2,10 +2,9 @@
 """
 This is the bridge, which connects the horde with the ML processing.
 
-This version checks if the aphrodite engine (an OpenAI-compatible model server)
-is running on port 2242. If it's not running, it automatically launches the engine
-inside a Docker container using the model specified in bridgeData.yaml.
-After the engine starts, it pauses so you can review the logs before proceeding.
+This version supports both KoboldAI and OpenAI-compatible endpoints.
+For KoboldAI: Checks if the aphrodite engine is running on port 2242 and launches it if needed
+For OpenAI: Connects directly to the OpenAI API using the provided credentials
 """
 # isort: off
 import threading
@@ -124,10 +123,17 @@ def main():
     set_logger_verbosity(args.verbosity)
     quiesce_logger(args.quiet)
     
+    # Load configuration
     with open('bridgeData.yaml', 'rt', encoding='utf-8') as configfile:
         config = yaml.safe_load(configfile)
     
+    # Set up bridge data
     bridge_data = KoboldAIBridgeData()
+    
+    # Set API type (default to koboldai if not specified)
+    bridge_data.api_type = config.get('api_type', 'koboldai').lower()
+    
+    # Set common configuration
     bridge_data.worker_name = config.get('worker_name', 'DefaultWorker')
     bridge_data.api_key = config.get('api_key', '')
     bridge_data.model_name = config.get('model_name')
@@ -135,27 +141,59 @@ def main():
         print("No model specified in bridgeData.yaml. Exiting.")
         sys.exit(1)
     
-    # Set the URLs from the YAML (using external URLs if preferred).
+    # Set the horde URL
     bridge_data.horde_url = config.get('horde_url', bridge_data.horde_url)
-    bridge_data.kai_url = config.get('kai_url', bridge_data.horde_url)
     
-    old_nvidia_compute = config.get('old_nvidia_compute', False)
-    download_dir = config.get('download_dir', './models')
-    gpu_count = config.get('gpu_count', 1)  # Default to 1 if not specified
+    # Set terminal UI setting
+    bridge_data.terminal_ui_enabled = config.get('terminal_ui_enabled', False)
     
-    if not is_engine_running():
-        print("Aphrodite engine is not running. Launching via Docker...")
-        engine_container = start_aphrodite_engine(
-            bridge_data.model_name, 
-            gpu_count=gpu_count,
-            old_nvidia_compute=old_nvidia_compute, 
-            download_dir=download_dir
-        )
-        print("\nAphrodite engine has been launched! Check the logs above for details.")
-        input("Press Enter to continue and start the text worker...\n")
+    # Handle API-specific configuration
+    if bridge_data.api_type == 'openai':
+        # For OpenAI, configure the endpoints and authentication
+        bridge_data.openai_api_key = config.get('openai_api_key', '')
+        if not bridge_data.openai_api_key:
+            print("ERROR: OpenAI API key is required when using OpenAI API type. Please check your bridgeData.yaml file.")
+            sys.exit(1)
+        
+        bridge_data.openai_url = config.get('openai_url', 'https://api.openai.com/v1')
+        bridge_data.openai_model = config.get('openai_model', 'gpt-3.5-turbo')
+        
+        # Set the model name if not specified
+        if not bridge_data.model_name or bridge_data.model_name == "stabilityai/stable-code-3b":
+            bridge_data.model_name = f"OpenAI {bridge_data.openai_model}"
+            
+        print(f"Using OpenAI API with endpoint {bridge_data.openai_url} and model {bridge_data.openai_model}")
+        print(f"Worker will be registered with model name: {bridge_data.model_name}")
+        
     else:
-        print("Aphrodite engine is already running.")
+        # For KoboldAI, set the KAI URL and check if the engine is running
+        bridge_data.kai_url = config.get('kai_url', 'http://localhost:2242')
+        
+        old_nvidia_compute = config.get('old_nvidia_compute', False)
+        download_dir = config.get('download_dir', './models')
+        gpu_count = config.get('gpu_count', 1)  # Default to 1 if not specified
+        
+        # Only start the engine if we're using KoboldAI
+        if not is_engine_running():
+            print("Aphrodite engine is not running. Launching via Docker...")
+            engine_container = start_aphrodite_engine(
+                bridge_data.model_name, 
+                gpu_count=gpu_count,
+                old_nvidia_compute=old_nvidia_compute, 
+                download_dir=download_dir
+            )
+            print("\nAphrodite engine has been launched! Check the logs above for details.")
+            input("Press Enter to continue and start the text worker...\n")
+        else:
+            print("Aphrodite engine is already running.")
     
+    # Set length parameters from config
+    if 'max_length' in config:
+        bridge_data.max_length = int(config.get('max_length'))
+    if 'max_context_length' in config:
+        bridge_data.max_context_length = int(config.get('max_context_length'))
+    
+    # Start the worker
     try:
         worker = ScribeWorker(bridge_data)
         worker.start()

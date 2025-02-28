@@ -203,23 +203,34 @@ class ScribePopper(JobPopper):
     def __init__(self, mm, bd):
         super().__init__(mm, bd)
         self.endpoint = "/api/v2/generate/text/pop"
-        # KAI Only ever offers one single model, so we just add it to the Horde's expected array form.
-        self.available_models = [self.bridge_data.model]
-        if bd.branded_model:
-            if not bd.username:
-                logger.warning("branded_model reqquested but AI Horde username could not be determined.")
-            else:
+        
+        # Initialize available models based on API type
+        if bd.api_type == "openai":
+            # For OpenAI, use the model_name or openai_model as the model
+            self.available_models = [bd.model_name or bd.openai_model]
+            # Add branding if needed
+            if bd.branded_model and bd.username:
+                self.available_models = [f"{self.available_models[0]}::{bd.username}"]
+        else:
+            # For KoboldAI, use the traditional approach
+            self.available_models = [self.bridge_data.model]
+            if bd.branded_model and bd.username:
                 self.available_models = [f"{self.bridge_data.model}::{bd.username}"]
+        
+        # Build the payload based on what's available
         self.pop_payload = {
             "name": self.bridge_data.worker_name,
             "models": self.available_models,
             "max_length": self.bridge_data.max_length,
             "max_context_length": self.bridge_data.max_context_length,
             "priority_usernames": self.bridge_data.priority_usernames,
-            "softprompts": self.bridge_data.softprompts[self.bridge_data.model],
             "bridge_agent": self.BRIDGE_AGENT,
             "threads": self.bridge_data.max_threads,
         }
+        
+        # Add softprompts only for KoboldAI
+        if bd.api_type == "koboldai" and self.bridge_data.model in self.bridge_data.softprompts:
+            self.pop_payload["softprompts"] = self.bridge_data.softprompts[self.bridge_data.model]
 
     def horde_pop(self):
         if not super().horde_pop():

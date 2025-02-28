@@ -1,8 +1,20 @@
 ## AIPG Simple Text Worker
 
-## Model you want to run, not all are supported so just be mindful
+## API Type - Choose between "koboldai" or "openai"
+api_type: "koboldai"  # Set to "openai" to use OpenAI compatible endpoints
 
+## Model you want to run, not all are supported so just be mindful
+## For KoboldAI, this is the model to load in the Aphrodite engine
+## For OpenAI, this is used as a display name in the horde
 model_name: "stabilityai/stable-code-3b"
+
+## OpenAI Configuration (only used when api_type is "openai")
+## Your OpenAI API key - should start with "sk-"
+openai_api_key: ""
+## The OpenAI API URL (defaults to https://api.openai.com/v1)
+openai_url: "https://api.openai.com/v1"
+## The OpenAI model to use (defaults to gpt-3.5-turbo)
+openai_model: "gpt-3.5-turbo"
 
 ## UI
 
@@ -11,11 +23,14 @@ terminal_ui_enabled: false # setting this to true actually sucks right now, to f
 
 # The horde url
 horde_url: "https://api.aipowergrid.io/"
+# The api_key identifies a unique user in the horde
+# Visit https://api.aipowergrid.io/register to create one before you can join
+api_key: ""
+# The name to use when running a scribe worker. Will default to `worker_name` if not set
+scribe_name: ""
 # Give a cool name to your instance
 worker_name: ""
-# The api_key identifies a unique user in the horde
-# Visit https://stablehorde.net/register to create one before you can join
-api_key: ""
+
 # Put other users whose prompts you want to prioritize.
 # The owner's username is always included so you don't need to add it here,
 max_threads: 1
@@ -33,9 +48,8 @@ gpu_count: 1
 
 ## Text Gen
 
-# The name to use when running a scribe worker. Will default to `worker_name` if not set
-scribe_name: ""
-# The KoboldAI Client API URL 
+
+# The KoboldAI Client API URL (only used when api_type is "koboldai")
 # By default, this should be http://<container_name>:7860, in our template is set to: http://aphrodite-engine:7860. 
 # Attention: the 'container_name' field refers to the name of the Aphrodite container.
 kai_url: "http://localhost:2242"
