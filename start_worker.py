@@ -73,7 +73,7 @@ def parse_domain_from_url(url):
         domain = url.split('/')[0]
     
     # Check if it's localhost or an IP address
-    if domain == 'localhost' or domain.startswith('localhost:') or re.match(r'^(\d{1,3}\.){3}\d{1,3}(:\d+)?$', domain):
+    if domain == 'localhost' or re.match(r'^(\d{1,3}\.){3}\d{1,3}(:\d+)?$', domain):
         return "gridbridge"
     
     # Remove port if present
