@@ -1,36 +1,40 @@
 ## AIPG Simple Text Worker
 
 ## API Type - Choose between "koboldai" or "openai"
-api_type: "koboldai"  # Set to "openai" to use OpenAI compatible endpoints
+## - koboldai: Uses an external KoboldAI API endpoint
+## - openai: Uses the OpenAI API (requires an API key)
+api_type: "openai"
 
-## Model you want to run, not all are supported so just be mindful
-## For KoboldAI, this is the model to load in the Aphrodite engine
+## Model you want to run
+## For KoboldAI, this is used as a display name in the horde
 ## For OpenAI, this is used as a display name in the horde
-model_name: "stabilityai/stable-code-3b"
+model_name: "gpt-3.5-turbo"
 
 ## OpenAI Configuration (only used when api_type is "openai")
 ## Your OpenAI API key - should start with "sk-"
-openai_api_key: ""
+## Get your API key from https://platform.openai.com/api-keys
+openai_api_key: "your-api-key-here"
 ## The OpenAI API URL (defaults to https://api.openai.com/v1)
 openai_url: "https://api.openai.com/v1"
 ## The OpenAI model to use (defaults to gpt-3.5-turbo)
 openai_model: "gpt-3.5-turbo"
 
+## KoboldAI Configuration (only used when api_type is "koboldai")
+## The URL of your KoboldAI server 
+kai_url: "http://localhost:5000"
+
 ## UI
 
 # Enable the terminal UI
-terminal_ui_enabled: false # setting this to true actually sucks right now, to fix in the future
+terminal_ui_enabled: false
 
 # The horde url
 horde_url: "https://api.aipowergrid.io/"
-# The api_key identifies a unique user in the horde
-# Visit https://api.aipowergrid.io/register to create one before you can join
-api_key: ""
-# The name to use when running a scribe worker. Will default to `worker_name` if not set
-scribe_name: ""
 # Give a cool name to your instance
-worker_name: ""
-
+worker_name: "my-text-worker"
+# The api_key identifies a unique user in the horde
+# Visit https://stablehorde.net/register to create one before you can join
+api_key: "your-api-key-here"
 # Put other users whose prompts you want to prioritize.
 # The owner's username is always included so you don't need to add it here,
 max_threads: 1
@@ -38,24 +42,11 @@ max_threads: 1
 # Recommended to keep no higher than 1
 queue_size: 0
 
-# The number of GPUs to use. Defaults to 1.
-gpu_count: 1
-
-## Storage
-
-# Directory to download models to. Defaults to the "models" folder(will be created if it doesn't exist) if not set.
-#download_dir: "./models"
-
 ## Text Gen
 
-
-# The KoboldAI Client API URL (only used when api_type is "koboldai")
-# By default, this should be http://<container_name>:7860, in our template is set to: http://aphrodite-engine:7860. 
-# Attention: the 'container_name' field refers to the name of the Aphrodite container.
-kai_url: "http://localhost:2242"
+# The name to use when running a scribe worker. Will default to `worker_name` if not set
+scribe_name: "my-text-worker"
 # The max amount of tokens to generate with this worker 
 max_length: 512
 # The max tokens to use from the prompt
-max_context_length: 1024
-
-old_nvidia_compute: true # if you have an old nvidia card, set this to true
+max_context_length: 4096

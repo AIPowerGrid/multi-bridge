@@ -3,18 +3,17 @@
 This is the bridge, which connects the horde with the ML processing.
 
 This version supports both KoboldAI and OpenAI-compatible endpoints.
-For KoboldAI: Checks if the aphrodite engine is running on port 2242 and launches it if needed
+For KoboldAI: Connects to an external KoboldAI API endpoint
 For OpenAI: Connects directly to the OpenAI API using the provided credentials
 """
 # isort: off
-import threading
 import time
 import socket
-import subprocess
-import sys
-import shutil
 import yaml
 import os
+import sys
+import re
+from urllib.parse import urlparse
 
 from worker.argparser.scribe import args
 from worker.utils.set_envs import set_worker_env_vars_from_config
@@ -25,10 +24,25 @@ from worker.logger import logger, quiesce_logger, set_logger_verbosity  # noqa: 
 from worker.workers.scribe import ScribeWorker  # noqa: E402
 # isort: on
 
-def is_engine_running(host='localhost', port=2242, timeout=5):
+def is_server_available(url, timeout=5):
     """
-    Check if the aphrodite engine is running by attempting to connect to the given host and port.
+    Check if a server is available by attempting to connect to the given URL.
     """
+    # Extract host and port from URL
+    if url.startswith('http://'):
+        host = url[7:].split('/')[0]
+    elif url.startswith('https://'):
+        host = url[8:].split('/')[0]
+    else:
+        host = url.split('/')[0]
+    
+    # Extract port if specified
+    if ':' in host:
+        host, port = host.split(':')
+        port = int(port)
+    else:
+        port = 443 if url.startswith('https://') else 80
+    
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(timeout)
     try:
@@ -38,86 +52,56 @@ def is_engine_running(host='localhost', port=2242, timeout=5):
     except Exception:
         return False
 
-def tail_docker_logs(container_id):
-    """Tail the logs of a docker container and print them to stdout."""
-    try:
-        log_proc = subprocess.Popen(
-            ["docker", "logs", "-f", container_id],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-        )
-        for line in log_proc.stdout:
-            print("[DOCKER LOG]", line.rstrip())
-    except Exception as e:
-        print("Error tailing docker logs:", e)
-
-def start_aphrodite_engine(model_name, gpu_count=1, old_nvidia_compute=False, download_dir="./models"):
+def parse_domain_from_url(url):
     """
-    Launch the aphrodite engine as a Docker container with the specified model.
-    
-    Args:
-        model_name (str): The model to load.
-        gpu_count (int): Number of GPUs to allocate to the container.
-        old_nvidia_compute (bool): Whether to use old NVIDIA compute settings.
-        download_dir (str): Directory to download models to and mount into Docker.
+    Parse the domain from a URL and format it for use as a model prefix.
+    - Removes 'www.' and '.com' if present
+    - Returns 'gridbridge' if localhost or IP address
     """
-    if shutil.which("docker") is None:
-        print("Error: The 'docker' command is not found in your PATH. Please install Docker.")
-        sys.exit(1)
+    # Handle empty or invalid URLs
+    if not url:
+        return "gridbridge"
     
-    # Ensure the download directory exists
-    if not os.path.exists(download_dir):
-        os.makedirs(download_dir)
+    # Parse the URL
+    parsed_url = urlparse(url)
     
-    # Set the --gpus parameter based on gpu_count
-    gpus_param = f"count={gpu_count}" if gpu_count > 0 else "all"
+    # Extract the netloc (domain)
+    domain = parsed_url.netloc
     
-    # Build the Docker command with dynamic tensor-parallel-size
-    command = [
-        "docker", "run", "--rm", "-d",
-        "--gpus", gpus_param,
-        "-p", "2242:2242",
-        "--ipc=host",
-        "-v", f"{download_dir}:/app/models",
-        "alpindale/aphrodite-openai:latest",
-        "--model", model_name,
-        "--tensor-parallel-size", str(gpu_count),
-        "--download-dir", "/app/models",
-    ]
+    # If netloc is empty, the URL might not have http:// prefix
+    if not domain and url:
+        domain = url.split('/')[0]
     
-    if old_nvidia_compute:
-        command.append("--dtype")
-        command.append("half")
+    # Check if it's localhost or an IP address
+    if domain == 'localhost' or re.match(r'^(\d{1,3}\.){3}\d{1,3}(:\d+)?$', domain):
+        return "gridbridge"
     
-    command.append("--launch-kobold-api")
+    # Remove port if present
+    if ':' in domain:
+        domain = domain.split(':')[0]
     
-    print("Starting aphrodite engine with command:", " ".join(command))
-    result = subprocess.run(command, capture_output=True, text=True)
-    if result.returncode != 0:
-        print("Failed to launch docker container for aphrodite engine:")
-        print(result.stderr)
-        sys.exit(1)
+    # Remove www. prefix if present
+    if domain.startswith('www.'):
+        domain = domain[4:]
     
-    container_id = result.stdout.strip()
-    print("Started aphrodite docker container with ID:", container_id)
+    # Remove .com suffix if present
+    if domain.endswith('.com'):
+        domain = domain[:-4]
     
-    # Start a background thread to tail the container's logs.
-    log_thread = threading.Thread(target=tail_docker_logs, args=(container_id,), daemon=True)
-    log_thread.start()
+    # Remove other TLDs if needed
+    domain = domain.split('.')[0]
     
-    # Wait until the engine is up and listening on port 2242.
-    retries = 0
-    while retries < 10:
-        if is_engine_running():
-            print("Aphrodite engine is up and running.")
-            return container_id
-        time.sleep(2)
-        retries += 1
-        
-    print("Failed to start aphrodite engine after container launch. Exiting.")
-    subprocess.run(["docker", "kill", container_id])
-    sys.exit(1)
+    # If we got openai as a domain, keep it as is
+    if domain == 'openai':
+        return domain
+    
+    # For api.openai.com, we should return openai
+    if domain == 'api':
+        # Check if the original domain was api.openai.com
+        if 'openai' in parsed_url.netloc:
+            return 'openai'
+    
+    return domain or "gridbridge"
 
 def main():
     set_logger_verbosity(args.verbosity)
@@ -158,34 +142,35 @@ def main():
         bridge_data.openai_url = config.get('openai_url', 'https://api.openai.com/v1')
         bridge_data.openai_model = config.get('openai_model', 'gpt-3.5-turbo')
         
-        # Set the model name if not specified
-        if not bridge_data.model_name or bridge_data.model_name == "stabilityai/stable-code-3b":
-            bridge_data.model_name = f"OpenAI {bridge_data.openai_model}"
+        # Get domain name to use as prefix
+        domain_prefix = parse_domain_from_url(bridge_data.openai_url)
+        
+        # Set the model name with domain prefix
+        if not bridge_data.model_name or bridge_data.model_name == bridge_data.openai_model:
+            bridge_data.model_name = f"{domain_prefix}/{bridge_data.openai_model}"
             
         print(f"Using OpenAI API with endpoint {bridge_data.openai_url} and model {bridge_data.openai_model}")
         print(f"Worker will be registered with model name: {bridge_data.model_name}")
         
     else:
-        # For KoboldAI, set the KAI URL and check if the engine is running
-        bridge_data.kai_url = config.get('kai_url', 'http://localhost:2242')
+        # For KoboldAI, set the KAI URL
+        bridge_data.kai_url = config.get('kai_url', 'http://localhost:5000')
         
-        old_nvidia_compute = config.get('old_nvidia_compute', False)
-        download_dir = config.get('download_dir', './models')
-        gpu_count = config.get('gpu_count', 1)  # Default to 1 if not specified
+        # Get domain name to use as prefix
+        domain_prefix = parse_domain_from_url(bridge_data.kai_url)
         
-        # Only start the engine if we're using KoboldAI
-        if not is_engine_running():
-            print("Aphrodite engine is not running. Launching via Docker...")
-            engine_container = start_aphrodite_engine(
-                bridge_data.model_name, 
-                gpu_count=gpu_count,
-                old_nvidia_compute=old_nvidia_compute, 
-                download_dir=download_dir
-            )
-            print("\nAphrodite engine has been launched! Check the logs above for details.")
-            input("Press Enter to continue and start the text worker...\n")
+        # Set the model name with domain prefix if not already containing a '/'
+        if bridge_data.model_name and '/' not in bridge_data.model_name:
+            bridge_data.model_name = f"{domain_prefix}/{bridge_data.model_name}"
+        
+        # Check if the server is available
+        if not is_server_available(bridge_data.kai_url):
+            print(f"KoboldAI server at {bridge_data.kai_url} is not available.")
+            print("Please make sure the server is running and the URL is correct.")
+            sys.exit(1)
         else:
-            print("Aphrodite engine is already running.")
+            print(f"KoboldAI server found at {bridge_data.kai_url}")
+            print(f"Worker will be registered with model name: {bridge_data.model_name}")
     
     # Set length parameters from config
     if 'max_length' in config:

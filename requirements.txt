@@ -7,5 +7,6 @@ psutil
 windows-curses; sys_platform == 'win32'
 loguru
 GitPython
-aphrodite-engine
 GPUtil
+openai
+requests
