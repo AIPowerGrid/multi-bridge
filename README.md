@@ -13,6 +13,9 @@ A utility to connect the Grid with ML processing, supporting both external Kobol
 - **KoboldAI Integration:**  
   Connect to any KoboldAI-compatible endpoint to use those models.
 
+- **Intelligent Model Naming:**  
+  Automatically prefixes model names with the API domain (e.g., "openai/gpt-3.5-turbo") for better visibility in the horde. Uses "gridbridge" prefix for localhost or IP addresses.
+
 - **Unified Configuration:**  
   All settings are managed via `bridgeData.yaml` so that you can specify the API type, model, URLs, and other options in one place. `bridgeData_template.yaml` is provided as a starting point.
 
@@ -39,7 +42,8 @@ All settings are managed in the `bridgeData.yaml` file. An example configuration
   Choose between "koboldai" or "openai" to determine which API to use.
 
 - **model_name:**  
-  Used as a display name in the horde for both KoboldAI and OpenAI modes.
+  Used as a display name in the horde for both KoboldAI and OpenAI modes. 
+  The domain will be automatically added as a prefix (e.g., "openai/gpt-3.5-turbo").
 
 - **worker_name:**  
   Give a name to your worker instance.

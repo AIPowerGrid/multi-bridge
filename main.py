@@ -53,16 +53,24 @@ def main():
     config = load_config()
     
     api_type = config.get('api_type', 'openai').lower()
+    model_name = config.get('model_name')
     
     if api_type == 'openai':
         # Setup OpenAI
         openai.api_key = config['openai_api_key']
         openai.api_base = config['openai_url']
+        openai_model = config.get('openai_model', 'gpt-3.5-turbo')
         
-        print(f"Using OpenAI API with endpoint {config['openai_url']} and model {config['openai_model']}")
+        # We don't need to set the model prefix here anymore
+        # It will be handled by the bridge_data class
+        if not model_name:
+            model_name = openai_model
+        
+        print(f"Using OpenAI API with endpoint {config['openai_url']} and model {openai_model}")
     else:
         # Setup KoboldAI
-        print(f"Using KoboldAI API with endpoint {config.get('kai_url', 'http://localhost:5000')}")
+        kai_url = config.get('kai_url', 'http://localhost:5000')
+        print(f"Using KoboldAI API with endpoint {kai_url}")
     
     # Setup Grid Client
     grid = GridClient(
@@ -74,7 +82,7 @@ def main():
     # Start processing
     grid.start_processing(
         max_threads=config.get('max_threads', 1),
-        model=config.get('model_name', config.get('openai_model', 'gpt-3.5-turbo')),
+        model=model_name,
         max_length=config.get('max_length', 512)
     )
 

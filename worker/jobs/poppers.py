@@ -204,18 +204,13 @@ class ScribePopper(JobPopper):
         super().__init__(mm, bd)
         self.endpoint = "/api/v2/generate/text/pop"
         
-        # Initialize available models based on API type
-        if bd.api_type == "openai":
-            # For OpenAI, use the model_name or openai_model as the model
-            self.available_models = [bd.model_name or bd.openai_model]
-            # Add branding if needed
-            if bd.branded_model and bd.username:
-                self.available_models = [f"{self.available_models[0]}::{bd.username}"]
-        else:
-            # For KoboldAI, use the traditional approach
-            self.available_models = [self.bridge_data.model]
-            if bd.branded_model and bd.username:
-                self.available_models = [f"{self.bridge_data.model}::{bd.username}"]
+        # For both OpenAI and KoboldAI, use the model_name from bridge_data
+        # This will already have the domain prefix from our modifications in start_worker.py
+        self.available_models = [self.bridge_data.model_name]
+        
+        # Add branding if needed
+        if bd.branded_model and bd.username:
+            self.available_models = [f"{self.available_models[0]}::{bd.username}"]
         
         # Build the payload based on what's available
         self.pop_payload = {
@@ -229,7 +224,7 @@ class ScribePopper(JobPopper):
         }
         
         # Add softprompts only for KoboldAI
-        if bd.api_type == "koboldai" and self.bridge_data.model in self.bridge_data.softprompts:
+        if bd.api_type == "koboldai" and hasattr(self.bridge_data, 'softprompts') and self.bridge_data.model in self.bridge_data.softprompts:
             self.pop_payload["softprompts"] = self.bridge_data.softprompts[self.bridge_data.model]
 
     def horde_pop(self):

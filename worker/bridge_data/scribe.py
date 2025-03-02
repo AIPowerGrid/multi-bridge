@@ -1,11 +1,66 @@
 """The configuration of the bridge"""
 import os
+import re
+from urllib.parse import urlparse
 
 import requests
 from loguru import logger
 
 from worker.argparser.scribe import args
 from worker.bridge_data.framework import BridgeDataTemplate
+
+
+def parse_domain_from_url(url):
+    """
+    Parse the domain from a URL and format it for use as a model prefix.
+    - Removes 'www.' and '.com' if present
+    - Returns 'gridbridge' if localhost or IP address
+    """
+    # Handle empty or invalid URLs
+    if not url:
+        return "gridbridge"
+    
+    # Parse the URL
+    parsed_url = urlparse(url)
+    
+    # Extract the netloc (domain)
+    domain = parsed_url.netloc
+    
+    # If netloc is empty, the URL might not have http:// prefix
+    if not domain and url:
+        domain = url.split('/')[0]
+    
+    # Check if it's localhost or an IP address
+    if domain == 'localhost' or domain.startswith('localhost:') or re.match(r'^(\d{1,3}\.){3}\d{1,3}(:\d+)?$', domain):
+        return "gridbridge"
+    
+    # Remove port if present
+    if ':' in domain:
+        domain = domain.split(':')[0]
+    
+    # Handle api subdomains - if domain starts with 'api.' get the next part
+    if domain.startswith('api.'):
+        # Get the second part of the domain (after 'api.')
+        domain_parts = domain.split('.')
+        if len(domain_parts) >= 2:
+            domain = domain_parts[1]
+    
+    # Remove www. prefix if present
+    if domain.startswith('www.'):
+        domain = domain[4:]
+    
+    # Remove .com suffix if present
+    if domain.endswith('.com'):
+        domain = domain[:-4]
+    
+    # Remove other TLDs if needed
+    domain = domain.split('.')[0]
+    
+    # If we got openai as a domain, keep it as is
+    if domain == 'openai':
+        return domain
+    
+    return domain or "gridbridge"
 
 
 class KoboldAIBridgeData(BridgeDataTemplate):
@@ -15,6 +70,7 @@ class KoboldAIBridgeData(BridgeDataTemplate):
         super().__init__(args)
         # Common configuration
         self.model = None
+        self.model_name = None  # Will store the formatted model name with domain prefix
         self.max_length = int(os.environ.get("HORDE_MAX_LENGTH", "80"))
         self.max_context_length = int(os.environ.get("HORDE_MAX_CONTEXT_LENGTH", "1024"))
         self.branded_model = os.environ.get("HORDE_BRANDED_MODEL", "false") == "true"
@@ -80,6 +136,16 @@ class KoboldAIBridgeData(BridgeDataTemplate):
                     ),
                     status="Joining Horde",
                 )
+                
+        # If model_name has been set externally (by start_worker.py), use that
+        # Otherwise, create it with the domain prefix
+        if not self.model_name and self.model:
+            if self.api_type == "openai":
+                domain_prefix = parse_domain_from_url(self.openai_url)
+                self.model_name = f"{domain_prefix}/{self.openai_model}"
+            else:
+                domain_prefix = parse_domain_from_url(self.kai_url)
+                self.model_name = f"{domain_prefix}/{self.model}"
 
     @logger.catch(reraise=True)
     def validate_kai(self):
@@ -106,6 +172,11 @@ class KoboldAIBridgeData(BridgeDataTemplate):
             # Normalize huggingface and local downloaded model names
             if "/" not in self.model:
                 self.model = self.model.replace("_", "/", 1)
+                
+            # Set the model_name with domain prefix
+            domain_prefix = parse_domain_from_url(self.kai_url)
+            self.model_name = f"{domain_prefix}/{self.model}"
+            logger.debug(f"Set model_name to: {self.model_name}")
             
             # Retrieve soft prompts list if needed.
             if self.model not in self.softprompts:
@@ -186,8 +257,13 @@ class KoboldAIBridgeData(BridgeDataTemplate):
             logger.info(f"OpenAI API connection successful with endpoint: {self.openai_url}")
             self.openai_available = True
             
-            # For display in the horde, use the model name if set, otherwise use the openai_model
-            self.model = self.model_name if hasattr(self, "model_name") and self.model_name else self.openai_model
+            # For internal reference, set the model name to the OpenAI model
+            self.model = self.openai_model
+            
+            # Set the model_name with domain prefix
+            domain_prefix = parse_domain_from_url(self.openai_url)
+            self.model_name = f"{domain_prefix}/{self.openai_model}"
+            logger.debug(f"Set model_name to: {self.model_name}")
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Error connecting to OpenAI API: {e}")

@@ -73,12 +73,19 @@ def parse_domain_from_url(url):
         domain = url.split('/')[0]
     
     # Check if it's localhost or an IP address
-    if domain == 'localhost' or re.match(r'^(\d{1,3}\.){3}\d{1,3}(:\d+)?$', domain):
+    if domain == 'localhost' or domain.startswith('localhost:') or re.match(r'^(\d{1,3}\.){3}\d{1,3}(:\d+)?$', domain):
         return "gridbridge"
     
     # Remove port if present
     if ':' in domain:
         domain = domain.split(':')[0]
+    
+    # Handle api subdomains - if domain starts with 'api.' get the next part
+    if domain.startswith('api.'):
+        # Get the second part of the domain (after 'api.')
+        domain_parts = domain.split('.')
+        if len(domain_parts) >= 2:
+            domain = domain_parts[1]
     
     # Remove www. prefix if present
     if domain.startswith('www.'):
@@ -94,12 +101,6 @@ def parse_domain_from_url(url):
     # If we got openai as a domain, keep it as is
     if domain == 'openai':
         return domain
-    
-    # For api.openai.com, we should return openai
-    if domain == 'api':
-        # Check if the original domain was api.openai.com
-        if 'openai' in parsed_url.netloc:
-            return 'openai'
     
     return domain or "gridbridge"
 
@@ -121,9 +122,8 @@ def main():
     bridge_data.worker_name = config.get('worker_name', 'DefaultWorker')
     bridge_data.api_key = config.get('api_key', '')
     bridge_data.model_name = config.get('model_name')
-    if not bridge_data.model_name:
-        print("No model specified in bridgeData.yaml. Exiting.")
-        sys.exit(1)
+    if not bridge_data.model_name and bridge_data.api_type == 'openai':
+        bridge_data.model_name = config.get('openai_model', 'gpt-3.5-turbo')
     
     # Set the horde URL
     bridge_data.horde_url = config.get('horde_url', bridge_data.horde_url)
@@ -142,26 +142,11 @@ def main():
         bridge_data.openai_url = config.get('openai_url', 'https://api.openai.com/v1')
         bridge_data.openai_model = config.get('openai_model', 'gpt-3.5-turbo')
         
-        # Get domain name to use as prefix
-        domain_prefix = parse_domain_from_url(bridge_data.openai_url)
-        
-        # Set the model name with domain prefix
-        if not bridge_data.model_name or bridge_data.model_name == bridge_data.openai_model:
-            bridge_data.model_name = f"{domain_prefix}/{bridge_data.openai_model}"
-            
         print(f"Using OpenAI API with endpoint {bridge_data.openai_url} and model {bridge_data.openai_model}")
-        print(f"Worker will be registered with model name: {bridge_data.model_name}")
         
     else:
         # For KoboldAI, set the KAI URL
         bridge_data.kai_url = config.get('kai_url', 'http://localhost:5000')
-        
-        # Get domain name to use as prefix
-        domain_prefix = parse_domain_from_url(bridge_data.kai_url)
-        
-        # Set the model name with domain prefix if not already containing a '/'
-        if bridge_data.model_name and '/' not in bridge_data.model_name:
-            bridge_data.model_name = f"{domain_prefix}/{bridge_data.model_name}"
         
         # Check if the server is available
         if not is_server_available(bridge_data.kai_url):
@@ -170,7 +155,6 @@ def main():
             sys.exit(1)
         else:
             print(f"KoboldAI server found at {bridge_data.kai_url}")
-            print(f"Worker will be registered with model name: {bridge_data.model_name}")
     
     # Set length parameters from config
     if 'max_length' in config:
