@@ -1,4 +1,4 @@
-# SimpleGrid Text Bridge
+# AI Power Grid Text Bridge
 
 A lightweight bridge to connect OpenAI-compatible and KoboldAI endpoints to the AI Power Grid distributed inference network.
 
