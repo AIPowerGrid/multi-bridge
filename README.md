@@ -6,7 +6,7 @@ A lightweight bridge to connect OpenAI-compatible and KoboldAI endpoints to the 
 
 This bridge enables you to contribute your local or remote LLM endpoints to the [AI Power Grid](https://docs.aipowergrid.io/) network. It supports:
 
-- OpenAI API-compatible endpoints (OpenAI, Azure, local servers)
+- OpenAI API-compatible endpoints
 - KoboldAI-compatible endpoints
 - Multiple workers with different configurations
 - Automatic model name prefixing for endpoint identification
