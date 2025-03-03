@@ -32,39 +32,6 @@ class WorkerFramework:
         # These two should be filled in by the extending classes
         self.PopperClass = None
         self.JobClass = None
-        self.startup_terminal_ui()
-
-    def startup_terminal_ui(self):
-        # Setup UI if requested
-        in_notebook = hasattr(__builtins__, "__IPYTHON__")
-        if in_notebook:
-            return
-            
-        # Automatically disable terminal UI on Windows platforms
-        if sys.platform.startswith('win'):
-            logger.info("Terminal UI is not available on Windows. Disabling.")
-            return
-
-        # Check if terminal UI is disabled explicitly
-        if hasattr(self.bridge_data, "disable_terminal_ui") and self.bridge_data.disable_terminal_ui:
-            return
-            
-        # Check for terminal_ui_enabled setting in YAML file (set to false by default)
-        if hasattr(self.bridge_data, "terminal_ui_enabled") and not self.bridge_data.terminal_ui_enabled:
-            return
-
-        # Don't allow this if auto-downloading is not enabled as how will the user see download prompts?
-        if hasattr(self.bridge_data, "always_download") and not self.bridge_data.always_download:
-            logger.warning("Terminal UI can not be enabled without also enabling 'always_download'")
-        else:
-            try:
-                from worker.ui import TerminalUI
-
-                self.ui_class = TerminalUI(self.bridge_data)
-                self.ui = threading.Thread(target=self.ui_class.run, daemon=True)
-                self.ui.start()
-            except ImportError as e:
-                logger.warning(f"Could not initialize Terminal UI: {e}")
 
     def on_restart(self):
         """Called when the worker loop is restarted. Make sure to invoke super().on_restart() when overriding."""
@@ -73,7 +40,8 @@ class WorkerFramework:
     @logger.catch(reraise=True)
     def stop(self):
         self.should_stop = True
-        self.ui_class.stop()
+        if self.ui_class:
+            self.ui_class.stop()
         logger.info("Stop methods called")
 
     @logger.catch(reraise=True)

@@ -76,7 +76,6 @@ class KoboldAIBridgeData(BridgeDataTemplate):
         self.branded_model = os.environ.get("HORDE_BRANDED_MODEL", "false") == "true"
         self.nsfw = os.environ.get("HORDE_NSFW", "true") == "true"
         self.blacklist = list(filter(lambda a: a, os.environ.get("HORDE_BLACKLIST", "").split(",")))
-        self.terminal_ui_enabled = False
         
         # API type (koboldai or openai)
         self.api_type = "koboldai"
@@ -203,12 +202,15 @@ class KoboldAIBridgeData(BridgeDataTemplate):
         except requests.exceptions.RequestException as e:
             logger.error("Request error while validating KAI at {}: {}", self.kai_url, e)
             self.kai_available = False
-            return
-        except Exception as e:
-            logger.error("Unexpected error during KAI validation: {}", e)
-            self.kai_available = False
+            # Reset the connection logged flag when there's an error
+            self._kai_connection_logged = False
             return
 
+        # Check if we've already logged this connection success to avoid duplicate logs
+        if not hasattr(self, '_kai_connection_logged') or not self._kai_connection_logged:
+            logger.info(f"KoboldAI connection successful with model: {self.model} at {self.kai_url}")
+            self._kai_connection_logged = True
+            
         self.kai_available = True
         
     @logger.catch(reraise=True)
@@ -254,10 +256,14 @@ class KoboldAIBridgeData(BridgeDataTemplate):
                     logger.warning(f"Specified model '{self.openai_model}' was not found in the available models")
                     # We'll continue anyway as custom endpoints might not list all models
             
-            logger.info(f"OpenAI API connection successful with endpoint: {self.openai_url}")
+            # Check if we've already logged this connection success to avoid duplicate logs
+            if not hasattr(self, '_openai_connection_logged') or not self._openai_connection_logged:
+                logger.info(f"OpenAI API connection successful with endpoint: {self.openai_url}")
+                self._openai_connection_logged = True
+            
             self.openai_available = True
             
-            # For internal reference, set the model name to the OpenAI model
+            # For internal reference, set the model to the OpenAI model
             self.model = self.openai_model
             
             # Set the model_name with domain prefix
@@ -268,6 +274,5 @@ class KoboldAIBridgeData(BridgeDataTemplate):
         except requests.exceptions.RequestException as e:
             logger.error(f"Error connecting to OpenAI API: {e}")
             self.openai_available = False
-        except Exception as e:
-            logger.error(f"Unexpected error during OpenAI validation: {e}")
-            self.openai_available = False
+            # Reset the connection logged flag when there's an error
+            self._openai_connection_logged = False

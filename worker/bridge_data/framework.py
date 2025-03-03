@@ -39,7 +39,7 @@ class BridgeDataTemplate:
         self.priority_usernames = list(filter(lambda a: a, os.environ.get("HORDE_PRIORITY_USERNAMES", "").split(",")))
         self.max_power = int(os.environ.get("HORDE_MAX_POWER", 8))
         self.max_threads = int(os.environ.get("HORDE_MAX_THREADS", 1))
-        self.queue_size = int(os.environ.get("HORDE_QUEUE_SIZE", 0))
+        self.queue_size = int(os.environ.get("HORDE_QUEUE_SIZE", "0"))
         self.allow_unsafe_ip = os.environ.get("HORDE_ALLOW_UNSAFE_IP", "true") == "true"
         self.require_upfront_kudos = os.environ.get("REQUIRE_UPFRONT_KUDOS", "false") == "true"
         self.stats_output_frequency = int(os.environ.get("STATS_OUTPUT_FREQUENCY", 30))
@@ -48,7 +48,13 @@ class BridgeDataTemplate:
         self.username = None
         self.models_reloading = False
         self.max_models_to_download = 10
-        self.suppress_speed_warnings = False
+        self.always_download = os.environ.get("HORDE_ALWAYS_DOWNLOAD", "true") == "true"
+        
+        # Stop the worker if a single failed download is detected
+        self.exit_on_failed_download = os.environ.get("EXIT_ON_FAILED_DOWNLOAD", "false") == "true"
+        
+        # Logging configuration
+        self.loglevel = os.environ.get("HORDE_LOGLEVEL", "INFO")
 
     def load_config(self):
         # YAML config

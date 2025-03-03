@@ -1,52 +1,81 @@
-## AIPG Simple Text Worker
+## AIPG Simple Text Worker Template
 
-## API Type - Choose between "koboldai" or "openai"
-## - koboldai: Uses an external KoboldAI API endpoint
-## - openai: Uses the OpenAI API (requires an API key)
-api_type: "openai"
+## Global Configuration
 
-## Model you want to run
-## For KoboldAI, this is used as a display name in the horde
-## For OpenAI, this is used as a display name in the horde
-model_name: "gpt-3.5-turbo"
-
-## OpenAI Configuration (only used when api_type is "openai")
-## Your OpenAI API key - should start with "sk-"
-## Get your API key from https://platform.openai.com/api-keys
-openai_api_key: "your-api-key-here"
-## The OpenAI API URL (defaults to https://api.openai.com/v1)
-openai_url: "https://api.openai.com/v1"
-## The OpenAI model to use (defaults to gpt-3.5-turbo)
-openai_model: "gpt-3.5-turbo"
-
-## KoboldAI Configuration (only used when api_type is "koboldai")
-## The URL of your KoboldAI server 
-kai_url: "http://localhost:5000"
-
-## UI
-
-# Enable the terminal UI
-terminal_ui_enabled: false
-
-# The horde url
+# The horde url (defaults to https://api.aipowergrid.io/)
 horde_url: "https://api.aipowergrid.io/"
-# Give a cool name to your instance
-worker_name: "my-text-worker"
+
 # The api_key identifies a unique user in the horde
 # Visit https://stablehorde.net/register to create one before you can join
 api_key: "your-api-key-here"
-# Put other users whose prompts you want to prioritize.
-# The owner's username is always included so you don't need to add it here,
-max_threads: 1
+
 # We will keep this many requests in the queue so we can start working as soon as a thread is available
 # Recommended to keep no higher than 1
 queue_size: 0
 
-## Text Gen
-
-# The name to use when running a scribe worker. Will default to `worker_name` if not set
-scribe_name: "my-text-worker"
-# The max amount of tokens to generate with this worker 
-max_length: 512
-# The max tokens to use from the prompt
-max_context_length: 4096
+## Endpoints Configuration
+endpoints:
+  # OpenAI API endpoint
+  - type: "openai"
+    name: "openai-endpoint"
+    api_key: "your-openai-api-key"
+    url: "https://api.openai.com/v1"
+    models:
+      # Each model becomes a worker
+      - name: "gpt35-worker"
+        model: "gpt-3.5-turbo"
+        max_threads: 1
+        max_length: 512
+        max_context_length: 4096
+      
+      - name: "gpt4-worker"
+        model: "gpt-4"
+        max_threads: 1
+        max_length: 1024
+        max_context_length: 8192
+  
+  # DeepSeek API endpoint (OpenAI compatible)
+  - type: "openai"
+    name: "deepseek-endpoint"
+    api_key: "your-deepseek-api-key"
+    url: "https://api.deepseek.com/v1"
+    models:
+      - name: "deepseek-chat-worker"
+        model: "deepseek-chat"
+        max_threads: 1
+        max_length: 1024
+        max_context_length: 8192
+  
+  # Anthropic API endpoint (OpenAI compatible)
+  - type: "openai"
+    name: "anthropic-endpoint"
+    api_key: "your-anthropic-api-key"
+    url: "https://api.anthropic.com/v1"
+    models:
+      - name: "claude-sonnet-worker"
+        model: "claude-3-sonnet-20240229"
+        max_threads: 1
+        max_length: 4096
+        max_context_length: 16384
+  
+  # Ollama local API endpoint (OpenAI compatible)
+  - type: "openai"
+    name: "ollama-endpoint"
+    api_key: ""  # Not needed for Ollama
+    url: "http://localhost:11434/v1"
+    models:
+      - name: "llama3-worker"
+        model: "llama3"
+        max_threads: 1
+        max_length: 1024
+        max_context_length: 8192
+  
+  # KoboldAI endpoint (local)
+  - type: "koboldai"
+    name: "kobold-endpoint"
+    url: "http://localhost:5000"
+    models:
+      - name: "kobold-worker"
+        max_threads: 1
+        max_length: 512
+        max_context_length: 4096 
