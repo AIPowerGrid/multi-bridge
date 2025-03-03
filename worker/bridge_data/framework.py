@@ -25,7 +25,7 @@ class BridgeDataTemplate:
         # If there is a YAML config file, load it
         self.load_config()
 
-        self.horde_url = os.environ.get("HORDE_URL", "https://stablehorde.net")
+        self.horde_url = os.environ.get("HORDE_URL", "https://api.aipowergrid.io")
         # Give a cool name to your instance
         self.worker_name = os.environ.get(
             "HORDE_WORKER_NAME",

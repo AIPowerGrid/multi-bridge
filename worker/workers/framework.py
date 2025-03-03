@@ -27,8 +27,6 @@ class WorkerFramework:
         self.executor = None
         self.ui = None
         self.ui_class = None
-        self.last_stats_time = time.time()
-        logger.stats("Starting new stats session")
         # These two should be filled in by the extending classes
         self.PopperClass = None
         self.JobClass = None
@@ -36,6 +34,9 @@ class WorkerFramework:
     def on_restart(self):
         """Called when the worker loop is restarted. Make sure to invoke super().on_restart() when overriding."""
         self.soft_restarts += 1
+        # Clear any existing jobs on restart to prevent memory leaks
+        self.running_jobs.clear()
+        self.waiting_jobs.clear()
 
     @logger.catch(reraise=True)
     def stop(self):
@@ -50,12 +51,16 @@ class WorkerFramework:
         self.exit_rc = 1
 
         self.consecutive_failed_jobs = 0  # Moved out of the loop to capture failure across soft-restarts
+        
+        # Show initial status
+        logger.info(f"🚀 Worker starting with {self.bridge_data.max_threads} threads")
 
         while True:  # This is just to allow it to loop through this and handle shutdowns correctly
             if self.should_restart:
                 self.should_restart = False
                 self.on_restart()
                 self.run_count = 0
+                logger.info(f"🔄 Worker restarting...")
 
             with ThreadPoolExecutor(max_workers=self.bridge_data.max_threads) as self.executor:
                 while not self.should_stop:
@@ -83,33 +88,40 @@ class WorkerFramework:
                         sys.exit(self.exit_rc)
 
     def process_jobs(self):
-        # logger.debug("Cron: Starting process_jobs()")
         if time.time() - self.last_config_reload > 60:
             self.reload_bridge_data()
         if not self.can_process_jobs():
-            # logger.debug("Cron: SLEEPING FOR 5 SECONDS")
             time.sleep(5)
             return
+        
+        # Show a compact status display every 30 seconds
+        current_time = time.time()
+        if not hasattr(self, '_last_status_display') or current_time - getattr(self, '_last_status_display', 0) > 30:
+            active_jobs = len(self.running_jobs)
+            waiting = len(self.waiting_jobs)
+            completed = self.run_count
+            
+            if active_jobs > 0:
+                logger.info(f"📊 Status: {active_jobs} active, {waiting} queued, {completed} completed")
+            
+            self._last_status_display = current_time
+        
         # Add job to queue if we have space
         if len(self.waiting_jobs) < self.bridge_data.queue_size:
-            # logger.debug("Cron: Starting to add job to queue")
             self.add_job_to_queue()
-            # logger.debug("Cron: End to add job to queue")
+        
         # Start new jobs
-        # logger.debug("Cron: Starting to start new jobs")
         while len(self.running_jobs) < self.bridge_data.max_threads and self.start_job():
             pass
-        # logger.debug("Cron: End of start new jobs")
+        
         # Check if any jobs are done
-        # logger.debug("Cron: Starting to check if jobs are done")
-        for job_thread, start_time, job in self.running_jobs:
+        for job_thread, start_time, job in list(self.running_jobs):  # Create a copy of the list to avoid modification during iteration
             self.check_running_job_status(job_thread, start_time, job)
             if self.should_restart or self.should_stop:
                 break
-        # logger.debug("Cron: End of check if jobs are done")
+        
         # Give the CPU a break
         time.sleep(0.02)
-        # logger.debug("Cron: End process_jobs()")
 
     def can_process_jobs(self):
         """This function returns true when this worker can start polling for jobs from the AI Horde
@@ -165,25 +177,24 @@ class WorkerFramework:
         if job_thread.done():
             if job_thread.exception(timeout=1) or job.is_faulted():
                 if job_thread.exception(timeout=1):
-                    logger.error("Job failed with exception, {}", job_thread.exception())
-                    logger.exception(job_thread.exception())
+                    logger.error(f"❌ Job failed with exception: {job_thread.exception()}")
                 if job.is_out_of_memory():
-                    logger.error("Job failed with out of memory error")
+                    logger.error(f"❌ Job failed with out of memory error")
                     self.out_of_memory_jobs += 1
                 if self.out_of_memory_jobs >= 10:
-                    logger.critical("Too many jobs have failed with out of memory error. Aborting!")
+                    logger.critical(f"⛔ Too many jobs have failed with out of memory error. Aborting!")
                     self.should_stop = True
                     return
                 if self.consecutive_executor_restarts > 0:
                     logger.critical(
-                        "Worker keeps crashing after thread executor restart. " "Cannot be salvaged. Aborting!",
+                        f"⛔ Worker keeps crashing after thread executor restart. Cannot be salvaged. Aborting!",
                     )
                     self.should_stop = True
                     return
                 self.consecutive_failed_jobs += 1
                 if self.consecutive_failed_jobs >= 5:
                     logger.critical(
-                        "Too many consecutive jobs have failed. " "Restarting thread executor and hope we recover...",
+                        f"⚠️ Too many consecutive jobs have failed. Restarting thread executor...",
                     )
                     self.should_restart = True
                     self.consecutive_executor_restarts += 1
@@ -192,23 +203,38 @@ class WorkerFramework:
                 self.consecutive_failed_jobs = 0
                 self.consecutive_executor_restarts = 0
             self.run_count += 1
-            logger.debug(f"Job finished successfully in {runtime:.3f}s (Total Completed: {self.run_count})")
-            self.running_jobs.remove((job_thread, start_time, job))
+            logger.debug(f"Job finished in {runtime:.3f}s (Total: {self.run_count})")
+            
+            # Remove the job from running_jobs to avoid memory leaks
+            if (job_thread, start_time, job) in self.running_jobs:
+                self.running_jobs.remove((job_thread, start_time, job))
+            
+            # Explicitly clear job content to help garbage collection
+            if hasattr(job, 'text'):
+                job.text = None
+            if hasattr(job, 'current_payload'):
+                job.current_payload = None
             return
 
         # check if any job has run for more than 180 seconds
         if job_thread.running() and job.is_stale():
-            logger.warning("Restarting all jobs, as a job is stale " f": {runtime:.3f}s")
+            logger.warning(f"⏱️ Job is stale after {runtime:.3f}s - restarting all jobs")
             for (
                 inner_job_thread,
                 inner_start_time,
                 inner_job,
-            ) in self.running_jobs:  # Sometimes it's already removed
-                self.running_jobs.remove((inner_job_thread, inner_start_time, inner_job))
+            ) in list(self.running_jobs):  # Use a copy of the list to avoid modification during iteration
+                if (inner_job_thread, inner_start_time, inner_job) in self.running_jobs:
+                    self.running_jobs.remove((inner_job_thread, inner_start_time, inner_job))
                 job_thread.cancel()
+                
+                # Explicitly clear job content to help garbage collection
+                if hasattr(inner_job, 'text'):
+                    inner_job.text = None
+                if hasattr(inner_job, 'current_payload'):
+                    inner_job.current_payload = None
             self.should_restart = True
             return
-
 
     def reload_data(self):
         """This is just a utility function to reload the configuration"""
@@ -218,5 +244,6 @@ class WorkerFramework:
 
     def reload_bridge_data(self):
         self.reload_data()
-        self.executor._max_workers = self.bridge_data.max_threads
+        if hasattr(self.executor, '_max_workers'):
+            self.executor._max_workers = self.bridge_data.max_threads
         self.last_config_reload = time.time()

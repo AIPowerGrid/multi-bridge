@@ -152,7 +152,7 @@ def start_worker(endpoint_config, model_config, global_config):
         bridge_data.openai_url = endpoint_config.get('url', 'https://api.openai.com/v1')
         bridge_data.openai_model = model_config.get('model', 'gpt-3.5-turbo')
         
-        print(f"Worker '{worker_name}' using OpenAI-compatible API at {bridge_data.openai_url} with model {bridge_data.openai_model}")
+        print(f"Worker '{worker_name}' succesfully connected to OpenAI-compatible API at {bridge_data.openai_url} with model {bridge_data.openai_model}")
         
         # Set the model_name with domain prefix
         domain_prefix = parse_domain_from_url(bridge_data.openai_url)

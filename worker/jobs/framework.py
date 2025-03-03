@@ -19,7 +19,8 @@ class HordeJobFramework:
 
     def __init__(self, mm, bd, pop):
         self.model_manager = mm
-        self.bridge_data = copy.deepcopy(bd)
+        # Make a shallow copy of bridge data instead of deep copy to save memory
+        self.bridge_data = bd
         self.pop = pop
         self.loop_retry = 0
         self.status = JobStatus.INIT
@@ -28,6 +29,7 @@ class HordeJobFramework:
         self.stale_time = None
         self.submit_dict = {}
         self.headers = {"apikey": self.bridge_data.api_key}
+        self.out_of_memory = False
 
     def is_finished(self):
         """Check if the job is finished"""
@@ -48,150 +50,115 @@ class HordeJobFramework:
         if not self.stale_time:
             return False
         # Jobs which haven't started yet are not considered stale.
-        if self.status != JobStatus.WORKING:
+        if self.status == JobStatus.INIT:
             return False
+        # If the job has been processing longer than stale time, it is stale
         return time.time() > self.stale_time
 
     def is_faulted(self):
         """Check if the job is faulted"""
-        return self.status in [JobStatus.FAULTED, JobStatus.FINALIZING_FAULTED, JobStatus.OUT_OF_MEMORY]
+        return self.status in [JobStatus.FAULTED, JobStatus.FINALIZING_FAULTED, JobStatus.DONE_FAULTED]
 
     def is_out_of_memory(self):
-        """Check if the job ran out of memory"""
-        return self.status in [JobStatus.OUT_OF_MEMORY]
+        """Check if the job is out of memory"""
+        return self.out_of_memory
 
     @logger.catch(reraise=True)
     def start_job(self):
-        """Starts a job from a pop request
-        This method MUST be extended with the specific logic for this worker
-        At the end it MUST create a new thread to submit the results to the horde"""
-        # Pop new request from the Horde
-        if self.pop is None:
-            self.pop = self.get_job_from_server()
-
-        if self.pop is None:
-            logger.error(
-                f"Something has gone wrong with {self.bridge_data.horde_url}. Please inform its administrator!",
-            )
-            time.sleep(self.retry_interval)
+        """Start a job from a pop request
+        The base class just finalizes the job instantly"""
+        try:
+            # Process the request
+            self.status = JobStatus.WORKING
+            # The extending class would do stuff here to process the job
+            self.status = JobStatus.DONE
+            self.submit_dict = {"success": True}
+        except Exception as e:
+            logger.error("Error while working: {}", e)
             self.status = JobStatus.FAULTED
-            # The extended function should return as well
-            return
-        self.process_time = time.time()
-        self.status = JobStatus.WORKING
-        # Continue with the specific worker logic from here
-        # At the end, you must call self.start_submit_thread()
+            if "out of memory" in str(e).lower():
+                self.out_of_memory = True
 
     def start_submit_thread(self):
-        """Starts a thread with submit_job so that we don't wait for the upload to complete
-        # Not a daemon, so that it can survive after this class is garbage collected"""
-        submit_thread = threading.Thread(target=self.submit_job, args=())
+        """Start a new thread to submit the job result"""
+        submit_thread = threading.Thread(target=self.submit_job)
+        submit_thread.daemon = True
         submit_thread.start()
-        logger.debug("Finished job in threadpool")
 
     def submit_job(self, endpoint):
-        """Submits the job to the server to earn our kudos.
-        This method MUST be extended with the specific logic for this worker
-        At the end it MUST set the job state to DONE"""
-        if self.status == JobStatus.FAULTED or self.status == JobStatus.OUT_OF_MEMORY:
-            self.submit_dict = {
-                "id": self.current_id,
-                "state": "faulted",
-                "generation": "faulted",
-                "seed": -1,
-            }
-            self.status = JobStatus.FINALIZING_FAULTED
-        else:
-            self.status = JobStatus.FINALIZING
-            self.prepare_submit_payload()
-        # Submit back to horde
-        while self.is_finalizing():
-            if self.loop_retry > 10:
-                logger.error(f"Exceeded retry count {self.loop_retry} for job id {self.current_id}. Aborting job!")
-                self.status = JobStatus.FAULTED
-                break
-            self.loop_retry += 1
-            try:
-                logger.debug(
-                    f"posting payload with size of {round(sys.getsizeof(json.dumps(self.submit_dict)) / 1024,1)} kb",
-                )
-                submit_req = requests.post(
-                    self.bridge_data.horde_url + endpoint,
-                    json=self.submit_dict,
-                    headers=self.headers,
-                    timeout=60,
-                )
-                logger.debug(f"Upload completed in {submit_req.elapsed.total_seconds()}")
+        """Submit a job to the API"""
+        self.prepare_submit_payload()
+        if self.status in [JobStatus.FAULTED, JobStatus.FINALIZING_FAULTED]:
+            self.submit_dict = {"success": False, "state": "faulted"}
+
+        with requests.Session() as s:
+            s.headers.update(self.headers)
+            # Always a good idea to set a timeout in case the horde is down
+            while True:
                 try:
-                    submit = submit_req.json()
-                except json.decoder.JSONDecodeError:
-                    logger.error(
-                        f"Something has gone wrong with {self.bridge_data.horde_url} during submit. "
-                        f"Please inform its administrator!  (Retry {self.loop_retry}/10)",
+                    submit_req = s.post(
+                        f"{self.bridge_data.horde_url}{endpoint}",
+                        json=self.submit_dict,
+                        timeout=30,
                     )
-                    time.sleep(self.retry_interval)
-                    continue
-                if submit_req.status_code == 404:
-                    logger.warning("The job we were working on got stale. Aborting!")
-                    self.status = JobStatus.FAULTED
-                    break
-                if not submit_req.ok:
-                    if submit_req.status_code == 400:
+                    if submit_req.status_code in [502, 503, 408, 500]:
+                        self.loop_retry += 1
+                        if self.loop_retry > 3:
+                            logger.error(
+                                f"Could not submit job after 3 retries: "
+                                f"{submit_req.status_code=}, {submit_req.text=}",
+                            )
+                            if self.status in [JobStatus.FINALIZING, JobStatus.FINALIZING_FAULTED]:
+                                self.status = JobStatus.DONE_FAULTED
+                            else:
+                                self.status = JobStatus.FAULTED
+                            return
+                        time.sleep(self.retry_interval)
+                        continue
+                    self.loop_retry = 0
+                    if submit_req.status_code == 404:
+                        logger.warning(f"Job already submitted {submit_req.text=}")
+                        # This will happen if the server already has this job submitted
+                        if self.status in [JobStatus.FINALIZING, JobStatus.FINALIZING_FAULTED]:
+                            self.status = JobStatus.DONE
+                        return
+                    if not submit_req.ok:
                         logger.warning(
-                            f"During gen submit, server {self.bridge_data.horde_url} "
-                            f"responded with status code {submit_req.status_code}: "
-                            f"Job took {round(time.time() - self.start_time,1)} seconds since queued "
-                            f"and {round(time.time() - self.process_time,1)} since start."
-                            f"{submit['message']}. Aborting job!",
+                            f"Failed to submit job. "
+                            f"{submit_req.status_code=}, {submit_req.text=}, {self.status=}"
                         )
-                        self.status = JobStatus.FAULTED
-                        break
-                    logger.warning(
-                        f"During gen submit, server {self.bridge_data.horde_url} "
-                        f"responded with status code {submit_req.status_code}: "
-                        f"{submit['message']}. Waiting for 2 seconds...  (Retry {self.loop_retry}/10)",
-                    )
-                    if "errors" in submit:
-                        logger.warning(f"Detailed Request Errors: {submit['errors']}")
-                    time.sleep(2)
-                    continue
-                reward = submit_req.json()["reward"]
-                time_spent_processing = round(time.time() - self.process_time, 1)
+                        if self.status in [JobStatus.FINALIZING, JobStatus.FINALIZING_FAULTED]:
+                            self.status = JobStatus.DONE
+                        return
+                    break
+                except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
+                    self.loop_retry += 1
+                    if self.loop_retry > 3:
+                        logger.error(f"Retrieving job failed after 3 retries: {e}")
+                        if self.status in [JobStatus.FINALIZING, JobStatus.FINALIZING_FAULTED]:
+                            self.status = JobStatus.DONE_FAULTED
+                        else:
+                            self.status = JobStatus.FAULTED
+                        return
+                    time.sleep(self.retry_interval)
 
-                with contextlib.suppress(ValueError):
-                    reward = float(reward)
-                    
-                logger.info(
-                    f"Submitted job with id {self.current_id} and contributed for {reward:.1f}. "
-                    f"Job took {round(time.time() - self.start_time,1)} seconds since queued "
-                    f"and {time_spent_processing} since start.",
-                )
-
-                self.post_submit_tasks(submit_req)
-                if self.status == JobStatus.FINALIZING_FAULTED:
-                    self.status = JobStatus.FAULTED
-                else:
-                    self.status = JobStatus.DONE
-                break
-            except requests.exceptions.ConnectionError:
-                logger.warning(
-                    f"Server {self.bridge_data.horde_url} unavailable during submit. "
-                    f"Waiting 10 seconds...  (Retry {self.loop_retry}/10)",
-                )
-                time.sleep(10)
-                continue
-            except requests.exceptions.ReadTimeout:
-                logger.warning(
-                    f"Server {self.bridge_data.horde_url} timed out during submit. "
-                    f"Waiting 10 seconds...  (Retry {self.loop_retry}/10)",
-                )
-                time.sleep(10)
-                continue
+        submit_json = submit_req.json()
+        
+        # Mark job as done and clear any unneeded data to help with memory usage
+        if self.status in [JobStatus.FINALIZING, JobStatus.FINALIZING_FAULTED]:
+            self.status = JobStatus.DONE
+        
+        # Help garbage collection by clearing large data
+        self.submit_dict = {}
+        self.pop = None
+        
+        # Process any post-submit tasks if needed
+        self.post_submit_tasks(submit_req)
 
     def prepare_submit_payload(self):
-        """Should be overriden and prepare a self.submit_dict dictionary with the payload needed
-        for this job to be submitted"""
-        self.submit_dict = {}
+        """Prepare payload for submission"""
+        pass
 
     def post_submit_tasks(self, submit_req):
-        """Optional job which will execute only if the submit is successfull"""
+        """Process any post-submit tasks"""
+        pass

@@ -1,12 +1,8 @@
-gradio
 pyyaml
 unidecode
 regex
-pynvml
 psutil
 windows-curses; sys_platform == 'win32'
 loguru
-GitPython
-GPUtil
-openai
 requests
+openai

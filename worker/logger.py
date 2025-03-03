@@ -126,6 +126,8 @@ logger.__class__.init_err = partialmethod(logger.__class__.log, "INIT_ERR")
 logger.__class__.message = partialmethod(logger.__class__.log, "MESSAGE")
 logger.__class__.stats = partialmethod(logger.__class__.log, "STATS")
 
+# Simplified config that only logs to stdout/stderr without file logging
+# But ensures important job information is shown
 config = {
     "handlers": [
         {
@@ -133,6 +135,7 @@ config = {
             "format": logfmt,
             "colorize": True,
             "filter": is_stderr_log,
+            "level": "WARNING",  # Only log warnings and above to stderr
         },
         {
             "sink": sys.stdout,
@@ -156,33 +159,11 @@ config = {
             "filter": is_msg_log,
         },
         {
-            "sink": "logs/bridge.log",
+            "sink": sys.stdout,
             "format": logfmt,
-            "level": "DEBUG",
-            "colorize": False,
-            "filter": is_not_stats_log,
-            "retention": "2 days",
-            "rotation": "3 hours",
-        },
-        {
-            "sink": "logs/stats.log",
-            "format": logfmt,
-            "level": "STATS",
-            "colorize": False,
-            "filter": is_stats_log,
-            "retention": "7 days",
-            "rotation": "1 days",
-        },
-        {
-            "sink": "logs/trace.log",
-            "format": logfmt,
-            "level": "TRACE",
-            "colorize": False,
-            "filter": is_trace_log,
-            "retention": "3 days",
-            "rotation": "1 days",
-            "backtrace": True,
-            "diagnose": True,
+            "level": "INFO",  # Show INFO level messages to capture job status
+            "colorize": True,
+            "filter": lambda record: record["level"].name == "INFO"
         },
     ],
 }

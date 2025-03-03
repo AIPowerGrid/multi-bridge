@@ -35,7 +35,7 @@ class ScribeHordeJob(HordeJobFramework):
     @logger.catch(reraise=True)
     def start_job(self):
         """Starts a Scribe job from a pop request"""
-        logger.debug("Starting job in threadpool for model: {}", self.current_model)
+        logger.info(f"▶️ Starting job {self.current_id[:8]}... | Model: {self.current_model} | Length: {self.current_payload['max_length']}")
         super().start_job()
         if self.status == JobStatus.FAULTED:
             self.start_submit_thread()
@@ -46,16 +46,15 @@ class ScribeHordeJob(HordeJobFramework):
         # These params will always exist in the payload from the horde
         gen_payload = self.current_payload
         if "width" in gen_payload or "length" in gen_payload or "steps" in gen_payload:
-            logger.error(f"Stable Diffusion payload detected. Aborting. ({gen_payload})")
+            logger.error(f"❌ Image generation payload detected. This is a text-only worker. Aborting.")
             self.status = JobStatus.FAULTED
             self.start_submit_thread()
             return
         
         try:
-            logger.info(
-                f"Starting generation for id {self.current_id}: {self.current_model} @ "
-                f"{self.current_payload['max_length']}:{self.current_payload['max_context_length']} "
-                f"Prompt length is {len(self.current_payload['prompt'])} characters",
+            prompt_length = len(self.current_payload['prompt'])
+            logger.debug(
+                f"Prompt length is {prompt_length} characters",
             )
             time_state = time.time()
             
@@ -68,18 +67,11 @@ class ScribeHordeJob(HordeJobFramework):
             self.seed = 0
             gen_time = time.time() - time_state
             logger.info(
-                f"Generation for id {self.current_id} finished successfully"
-                f" in {round(gen_time, 1)} seconds.",
+                f"✅ Job {self.current_id[:8]} completed in {round(gen_time, 1)}s | Model: {self.current_model}"
             )
         except Exception as err:
-            stack_payload = gen_payload
-            stack_payload["request_type"] = "text2text"
-            stack_payload["model"] = self.current_model
-            stack_payload["prompt"] = "PROMPT REDACTED"
             logger.error(
-                "Something went wrong when processing request. "
-                "Please check your trace.log file for the full stack trace. "
-                f"Payload: {stack_payload}",
+                f"❌ Error processing job {self.current_id[:8]} | Model: {self.current_model}"
             )
             trace = "".join(traceback.format_exception(type(err), err, err.__traceback__))
             logger.trace(trace)

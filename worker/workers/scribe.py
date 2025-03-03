@@ -39,6 +39,15 @@ class ScribeWorker(WorkerFramework):
         return super().pop_job()
 
     def get_running_models(self):
-        running_job_models = [job.current_model for job_thread, start_time, job in self.running_jobs]
-        queued_jobs_models = [job.current_model for job in self.waiting_jobs]
+        """Returns a list of models currently running or queued in this worker"""
+        running_job_models = []
+        for job_thread, _, job in self.running_jobs:
+            if hasattr(job, 'current_model') and job.current_model:
+                running_job_models.append(job.current_model)
+        
+        queued_jobs_models = []
+        for job in self.waiting_jobs:
+            if hasattr(job, 'current_model') and job.current_model:
+                queued_jobs_models.append(job.current_model)
+        
         return list(set(running_job_models + queued_jobs_models))

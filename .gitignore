@@ -196,3 +196,6 @@ src/taming-transformers
 /tmp
 /hordelib
 .vscode
+
+# Logs directory - we no longer use file logging to save memory
+/logs/

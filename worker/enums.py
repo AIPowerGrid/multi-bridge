@@ -13,3 +13,4 @@ class JobStatus(IntEnum):
     FINALIZING = 3
     DONE = 4
     FINALIZING_FAULTED = 5
+    DONE_FAULTED = 6
