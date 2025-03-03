@@ -1,166 +1,88 @@
-# SimpleGrid Text Worker
+# SimpleGrid Text Bridge
 
-A utility to connect the Grid with ML processing, supporting both external KoboldAI and OpenAI-compatible APIs.
+A lightweight bridge to connect OpenAI-compatible and KoboldAI endpoints to the AI Power Grid distributed inference network.
 
-## Features
+## Overview
 
-- **Dual API Support:**  
-  Connect either through an external KoboldAI server or directly to OpenAI API.
+This bridge enables you to contribute your local or remote LLM endpoints to the [AI Power Grid](https://docs.aipowergrid.io/) network. It supports:
 
-- **OpenAI Integration:**  
-  Connect directly to OpenAI's API to use their models like GPT-3.5 and GPT-4.
+- OpenAI API-compatible endpoints (OpenAI, Azure, local servers)
+- KoboldAI-compatible endpoints
+- Multiple workers with different configurations
+- Automatic model name prefixing for endpoint identification
 
-- **KoboldAI Integration:**  
-  Connect to any KoboldAI-compatible endpoint to use those models.
+## Quick Start
 
-- **Multi-Worker Support:**  
-  Run multiple workers with different configurations (different models, endpoints, or API types) in a single instance.
-
-- **Intelligent Model Naming:**  
-  Automatically prefixes model names with the API domain (e.g., "openai/gpt-3.5-turbo") for better visibility in the horde. Uses "gridbridge" prefix for localhost or IP addresses.
-
-- **Unified Configuration:**  
-  All settings are managed via `bridgeData.yaml` so that you can specify the API type, model, URLs, and other options in one place. `bridgeData_template.yaml` is provided as a starting point.
-
-- **Streamlined Logging and UI:**  
-  The utility provides logs and status details appropriate to the chosen API type.
-
-## Installation
-
-### Python Dependencies
-
-Ensure you have Python 3 installed. Then run:
-
+1. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Configuration
-
-All settings are managed in the `bridgeData.yaml` file. An example configuration is provided in `bridgeData_template.yaml`.
-
-### Configuration Structure
-
-The configuration file is divided into two main sections:
-
-1. **Global Configuration**: Settings that apply to all workers
-2. **Endpoints Configuration**: Definition of API endpoints, each with multiple models that become workers
-
-### Global Settings
-
-- **horde_url:**  
-  The URL of the horde API.
-
-- **api_key:**  
-  Your API key for the horde.
-
-- **queue_size:**  
-  Number of requests to keep in the queue.
-
-### Endpoints Configuration
-
-Each endpoint represents a connection to an API service (like OpenAI, DeepSeek, Anthropic, or a local KoboldAI server).
-Under each endpoint, you can define multiple models, each running as a separate worker.
-
-#### Endpoint Settings
-
-- **type:**  
-  The type of API ("openai" or "koboldai").
-
-- **name:**  
-  A name for the endpoint.
-
-- **url:**  
-  The base URL for the API.
-
-- **api_key:**  
-  The API key for this endpoint (for OpenAI-compatible endpoints). Not needed for KoboldAI.
-
-#### Model Settings (each becomes a worker)
-
-- **name:**  
-  Give a name to your worker instance.
-
-- **model:**  
-  The model to use (for OpenAI-compatible endpoints).
-
-- **max_threads:**  
-  How many simultaneous requests this worker should handle.
-
-- **max_length:**  
-  The maximum amount of tokens to generate with this worker.
-
-- **max_context_length:**  
-  The maximum tokens to use from the prompt.
-
-### Example Configuration
+2. Copy `bridgeData_template.yaml` to `bridgeData.yaml` and configure your endpoints:
 
 ```yaml
-## Global Configuration
+# Global settings
 horde_url: "https://api.aipowergrid.io/"
 api_key: "your-api-key-here"
 queue_size: 0
 
-## Endpoints Configuration
+# Example configurations
 endpoints:
-  # OpenAI API endpoint
+  # OpenAI-compatible endpoint
   - type: "openai"
     name: "openai-endpoint"
-    api_key: "your-openai-api-key"
+    api_key: "your-api-key"
     url: "https://api.openai.com/v1"
     models:
-      # Each model becomes a worker
       - name: "gpt35-worker"
         model: "gpt-3.5-turbo"
         max_threads: 1
         max_length: 512
         max_context_length: 4096
-      
-      - name: "gpt4-worker"
-        model: "gpt-4"
-        max_threads: 1
-        max_length: 1024
-        max_context_length: 8192
-  
-  # KoboldAI endpoint (local)
+
+  # Local KoboldAI endpoint
   - type: "koboldai"
-    name: "kobold-endpoint"
+    name: "local-kobold"
     url: "http://localhost:5000"
     models:
-      - name: "kobold-worker"
+      - name: "local-model"
         max_threads: 1
         max_length: 512
         max_context_length: 4096
 ```
 
-With this configuration, you would have three workers running simultaneously:
-1. An OpenAI GPT-3.5 Turbo worker
-2. An OpenAI GPT-4 worker
-3. A KoboldAI worker
-
-Each worker runs in its own thread, but shares the global configuration.
-
-## Usage
-
-1. Copy `bridgeData_template.yaml` to `bridgeData.yaml` and edit it to match your configuration.
-
-2. Run the worker:
-
+3. Start the bridge:
 ```bash
 python start_worker.py
 ```
 
-This will start all workers defined in your configuration.
+## Configuration Reference
 
-## Troubleshooting
+### Global Settings
+- `horde_url`: AI Power Grid API endpoint
+- `api_key`: Your Grid API key
+- `queue_size`: Request queue size (0 for unlimited)
 
-- **KoboldAI Connection Issues:**  
-  Ensure your KoboldAI server is running and accessible at the URL specified in the configuration.
+### Endpoint Settings
+- `type`: API type ("openai" or "koboldai")
+- `name`: Endpoint identifier
+- `url`: Base API URL
+- `api_key`: API key for OpenAI-compatible endpoints
 
-- **OpenAI Connection Issues:**  
-  Verify your API key and check the OpenAI status page for any service disruptions.
+### Model Settings
+- `name`: Worker instance name
+- `model`: Model identifier (OpenAI-compatible only)
+- `max_threads`: Concurrent request limit
+- `max_length`: Maximum generation length
+- `max_context_length`: Maximum input context length
+
+## Notes
+
+- Model names are automatically prefixed with the endpoint domain
+- Local/IP endpoints use "gridbridge" prefix
+- Each model configuration creates a separate worker thread
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! Please submit issues and pull requests on GitHub.
 
