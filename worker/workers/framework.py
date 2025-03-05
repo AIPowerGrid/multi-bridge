@@ -52,8 +52,8 @@ class WorkerFramework:
 
         self.consecutive_failed_jobs = 0  # Moved out of the loop to capture failure across soft-restarts
         
-        # Show initial status
-        logger.info(f"🚀 Worker starting with {self.bridge_data.max_threads} threads")
+        # Removed worker starting message to reduce log spam
+        self.executor = None
 
         while True:  # This is just to allow it to loop through this and handle shutdowns correctly
             if self.should_restart:
@@ -99,10 +99,22 @@ class WorkerFramework:
         if not hasattr(self, '_last_status_display') or current_time - getattr(self, '_last_status_display', 0) > 30:
             active_jobs = len(self.running_jobs)
             waiting = len(self.waiting_jobs)
-            completed = self.run_count
-            
-            if active_jobs > 0:
-                logger.info(f"📊 Status: {active_jobs} active, {waiting} queued, {completed} completed")
+            completed = 0
+            if hasattr(self, "completed_jobs"):
+                completed = self.completed_jobs
+                
+            # More concise status message with consistent column format
+            if active_jobs > 0 or waiting > 0:
+                # COL1: Status (exactly 21 chars) | COL2: Job counts (exactly 16 chars to match other messages)
+                status_col = f"📊Worker stats"
+                active_col = f"🚀 {active_jobs} active"
+                waiting_col = f"⏳ {waiting} waiting"
+                done_col = f"✅ {completed} done"
+                status_col_padded = f"{status_col:<21}"
+                active_col_padded = f"{active_col:<16}"
+                waiting_col_padded = f"{waiting_col:<16}"
+                done_col_padded = f"{done_col:<12}"
+                logger.info(f"{status_col_padded}| {active_col_padded}| {waiting_col_padded}| {done_col_padded}")
             
             self._last_status_display = current_time
         

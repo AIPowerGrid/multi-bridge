@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """
-This is the bridge, which connects the horde with the ML processing.
-
 This version supports both KoboldAI and OpenAI-compatible endpoints.
-For KoboldAI: Connects to an external KoboldAI API endpoint
-For OpenAI: Connects directly to the OpenAI API using the provided credentials
 """
 # isort: off
 import time
@@ -50,8 +46,11 @@ def is_server_available(url, timeout=5):
         s.connect((host, port))
         s.close()
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error checking server availability: {e}")
         return False
+    finally:
+        s.close()
 
 def parse_domain_from_url(url):
     """
@@ -115,11 +114,12 @@ def start_worker(endpoint_config, model_config, global_config):
         global_config (dict): The global configuration shared by all workers
     """
     endpoint_type = endpoint_config.get('type', 'koboldai').lower()
-    endpoint_name = endpoint_config.get('name', 'unnamed-endpoint')
+    # Use a more descriptive name if endpoint name is not specified
+    endpoint_name = endpoint_config.get('name', f"{endpoint_type}-endpoint")
     model_name = model_config.get('name', 'unnamed-model')
     
     worker_name = f"{model_name}"
-    print(f"Starting worker: {worker_name} (using {endpoint_name})")
+    # We'll print a consolidated message after we have all the info
     
     # Set up bridge data
     bridge_data = KoboldAIBridgeData()
@@ -152,10 +152,13 @@ def start_worker(endpoint_config, model_config, global_config):
         bridge_data.openai_url = endpoint_config.get('url', 'https://api.openai.com/v1')
         bridge_data.openai_model = model_config.get('model', 'gpt-3.5-turbo')
         
-        print(f"Worker '{worker_name}' succesfully connected to OpenAI-compatible API at {bridge_data.openai_url} with model {bridge_data.openai_model}")
+        # Print a more concise connection message
+        domain_prefix = parse_domain_from_url(bridge_data.openai_url)
+        # Include a shortened URL for context
+        short_url = bridge_data.openai_url.replace("https://", "").replace("http://", "").split("/")[0]
+        print(f"🔌 Starting worker: {worker_name} using {domain_prefix}/{bridge_data.openai_model} ({short_url})")
         
         # Set the model_name with domain prefix
-        domain_prefix = parse_domain_from_url(bridge_data.openai_url)
         bridge_data.model_name = f"{domain_prefix}/{bridge_data.openai_model}"
         
     else:
@@ -168,7 +171,13 @@ def start_worker(endpoint_config, model_config, global_config):
             print("Please make sure the server is running and the URL is correct. Skipping workers for this endpoint.")
             return
         else:
-            print(f"KoboldAI server found at {bridge_data.kai_url} for endpoint '{endpoint_name}'")
+            # Get domain for the URL
+            short_url = bridge_data.kai_url.replace("https://", "").replace("http://", "").split("/")[0]
+            if short_url == "localhost:5000":
+                short_url = "localhost"
+            
+            # Print consolidated message
+            print(f"🔌 Starting worker: {worker_name} using KoboldAI/{bridge_data.model} ({short_url})")
     
     # Start the worker
     try:
@@ -177,37 +186,27 @@ def start_worker(endpoint_config, model_config, global_config):
     except Exception as e:
         logger.error(f"Error starting worker '{worker_name}': {e}")
 
-def main():
-    set_logger_verbosity(args.verbosity)
-    quiesce_logger(args.quiet)
-    
-    # Load configuration
-    with open('bridgeData.yaml', 'rt', encoding='utf-8') as configfile:
+def load_configuration(config_path='bridgeData.yaml'):
+    """
+    Load and validate configuration from a YAML file.
+    """
+    with open(config_path, 'rt', encoding='utf-8') as configfile:
         config = yaml.safe_load(configfile)
-    
-    # Get global configuration
+
     global_config = {
         'horde_url': config.get('horde_url', 'https://api.aipowergrid.io/'),
         'api_key': config.get('api_key', ''),
         'queue_size': config.get('queue_size', 0)
     }
-    
-    # Check for the new configuration format (endpoints)
+
     endpoints_config = config.get('endpoints', [])
-    
-    # If no endpoints are defined in the new format, try to use the legacy format
+
     if not endpoints_config:
-        # Check for the previous workers format as a fallback
         workers_config = config.get('workers', [])
-        
-        # If previous workers format exists, convert it to the new format
         if workers_config:
             print("Using previous 'workers' configuration format. Consider updating to the new 'endpoints' format.")
-            
-            # Group workers by their endpoint details
             for worker_config in workers_config:
                 api_type = worker_config.get('api_type', 'koboldai').lower()
-                
                 if api_type == 'openai':
                     endpoint_config = {
                         'type': 'openai',
@@ -234,17 +233,12 @@ def main():
                             'max_context_length': worker_config.get('max_context_length', 4096),
                         }]
                     }
-                
                 endpoints_config.append(endpoint_config)
-        
-        # If still no endpoints, try to create one from legacy format
+
         if not endpoints_config:
-            # Legacy configuration format (really old)
             print("No endpoints or workers found, using legacy configuration format...")
-            
             api_type = config.get('api_type', 'koboldai').lower()
             worker_name = config.get('worker_name', config.get('scribe_name', 'DefaultWorker'))
-            
             if api_type == 'openai':
                 endpoints_config = [{
                     'type': 'openai',
@@ -271,23 +265,25 @@ def main():
                         'max_context_length': config.get('max_context_length', 4096),
                     }]
                 }]
-    
-    # Make sure we have at least one endpoint with models
+
     if not endpoints_config or not any(len(endpoint.get('models', [])) > 0 for endpoint in endpoints_config):
         print("ERROR: No valid endpoints with models defined in configuration file. Please add at least one endpoint with at least one model.")
         sys.exit(1)
-    
-    # Count total workers
+
+    return global_config, endpoints_config
+
+def main():
+    set_logger_verbosity(args.verbosity)
+    quiesce_logger(args.quiet)
+
+    global_config, endpoints_config = load_configuration()
+
     total_workers = sum(len(endpoint.get('models', [])) for endpoint in endpoints_config)
     print(f"Found {len(endpoints_config)} endpoint(s) with a total of {total_workers} worker(s) in configuration")
-    
-    # Start workers in separate threads
+
     worker_threads = []
-    
     for endpoint_config in endpoints_config:
-        # Get models for this endpoint
         models = endpoint_config.get('models', [])
-        
         for model_config in models:
             worker_thread = threading.Thread(
                 target=start_worker,
@@ -297,15 +293,14 @@ def main():
             worker_threads.append(worker_thread)
             worker_thread.daemon = True
             worker_thread.start()
-    
-    # Wait for all worker threads to complete (they likely won't complete on their own)
+
     try:
         while any(thread.is_alive() for thread in worker_threads):
             time.sleep(1)
     except KeyboardInterrupt:
         logger.info("Keyboard Interrupt Received. Ending Process")
-        
-    logger.init("All workers stopped", status="Stopped")
+
+    logger.info("All workers stopped", status="Stopped")
 
 if __name__ == "__main__":
     main()

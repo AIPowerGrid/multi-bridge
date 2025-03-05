@@ -258,7 +258,7 @@ class KoboldAIBridgeData(BridgeDataTemplate):
             
             # Check if we've already logged this connection success to avoid duplicate logs
             if not hasattr(self, '_openai_connection_logged') or not self._openai_connection_logged:
-                logger.info(f"OpenAI API connection successful with endpoint: {self.openai_url}")
+                # Removed connection message to reduce log spam
                 self._openai_connection_logged = True
             
             self.openai_available = True

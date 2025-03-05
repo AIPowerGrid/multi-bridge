@@ -1,8 +1,9 @@
-pyyaml
+pyyaml>=6.0.1
 unidecode
 regex
 psutil
 windows-curses; sys_platform == 'win32'
 loguru
-requests
+requests>=2.31.0
 openai
+zstandard>=0.21.0  # Required for Grid API compression
