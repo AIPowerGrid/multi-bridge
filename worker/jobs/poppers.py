@@ -109,7 +109,7 @@ class JobPopper:
             else:
                 kudos_str = f"{kudos_val}"
             # Add kudos with extra spacing for growing numbers
-            stats_parts.append(f"🌟 {kudos_str:<5} kudos/hr")
+            stats_parts.append(f"🌟{kudos_str:<6} kudos/hr")
         
         # Add jobs per hour if available
         if "jobs_per_hour" in bridge_stats.stats:
@@ -120,7 +120,7 @@ class JobPopper:
             else:
                 jobs_str = f"{jobs_val}"
             # Add jobs with extra spacing for growing numbers
-            stats_parts.append(f"🔄 {jobs_str:<4}jobs/hr")
+            stats_parts.append(f"🔄 {jobs_str:<6} jobs/hr")
         
         # Show time since last job if we have that info
         last_job_str = ""
@@ -156,13 +156,13 @@ class JobPopper:
             waiting_idx = int((current_time // 30) % len(waiting_messages))  # Change message every 30 seconds
             wait_msg = waiting_messages[waiting_idx]
         else:
-            wait_msg = "⏳ Waiting for jobs..."
+            wait_msg = "⏳ Waiting for jobs.."
             
         # COLUMN DEFINITIONS - all messages must adhere to these column widths
         # COL1: Status message (21 chars) | COL2: Thread info (18 chars) | COL3: Stats (variable)
         
         # Format the status message with colorful indicators - note we use exactly 21 chars
-        status_msg = f"{wait_msg:<21}"
+        status_msg = f"{wait_msg:<20}"
         
         # Format thread info - fixed width of 16 chars (reduced to tighten spacing)
         thread_msg = f"👥 Threads: {worker_count}/{self.bridge_data.max_threads}"
