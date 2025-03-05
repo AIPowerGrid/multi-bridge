@@ -118,7 +118,7 @@ class ScribeHordeJob(HordeJobFramework):
                 speed_indicator = "��Slow"
 
             speed_indicator_padded = f"{speed_indicator:<16}"
-            tps_col_padded = f"⚡  {tokens_per_second:<8.1f}TPS"
+            tps_col_padded = f"⚡  {tokens_per_second:<7.1f}TPS"
             logger.info(f"{complete_col}| {model_col}| {speed_indicator_padded}| {tps_col_padded}")
         except Exception as err:
             error_info = f"❌ Failed {job_id}"  # Even shorter message as requested
