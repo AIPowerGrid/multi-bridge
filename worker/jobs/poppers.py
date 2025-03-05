@@ -109,7 +109,7 @@ class JobPopper:
             else:
                 kudos_str = f"{kudos_val}"
             # Add kudos with extra spacing for growing numbers
-            stats_parts.append(f"🌟{kudos_str:<6} kudos/hr")
+            stats_parts.append(f"🌟 {kudos_str:<5} kudos/hr")
         
         # Add jobs per hour if available
         if "jobs_per_hour" in bridge_stats.stats:
@@ -120,7 +120,7 @@ class JobPopper:
             else:
                 jobs_str = f"{jobs_val}"
             # Add jobs with extra spacing for growing numbers
-            stats_parts.append(f"🔄 {jobs_str:<6}jobs/hr")
+            stats_parts.append(f"🔄 {jobs_str:<4}jobs/hr")
         
         # Show time since last job if we have that info
         last_job_str = ""

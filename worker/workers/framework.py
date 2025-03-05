@@ -113,8 +113,8 @@ class WorkerFramework:
                 status_col_padded = f"{status_col:<21}"
                 active_col_padded = f"{active_col:<16}"
                 waiting_col_padded = f"{waiting_col:<16}"
-                done_col_padded = f"{done_col:<12}"
-                logger.info(f"{status_col_padded}| {active_col_padded}| {waiting_col_padded}| {done_col_padded}")
+                done_col_padded = f"{done_col:<1}"
+                logger.info(f"{status_col_padded}| {active_col_padded}| {waiting_col_padded}| {done_col_padded}kudos/hr| {jobs_col_padded} jobs/hr")
             
             self._last_status_display = current_time
         
