@@ -111,9 +111,9 @@ class WorkerFramework:
                 active_col = f"🚀 {active_jobs} active"
                 waiting_col = f"⏳ {waiting} waiting"
                 done_col = f"✅ {completed} done"
-                status_col_padded = f"{status_col:<21}"
+                status_col_padded = f"{status_col:<19}"
                 active_col_padded = f"{active_col:<16}"
-                waiting_col_padded = f"{waiting_col:<16}"
+                waiting_col_padded = f"{waiting_col:<17}"
                 done_col_padded = f"{done_col:<1}"
                 logger.info(f"{status_col_padded}| {active_col_padded}| {waiting_col_padded}| {done_col_padded}")
             

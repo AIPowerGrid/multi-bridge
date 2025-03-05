@@ -60,7 +60,7 @@ class ScribeHordeJob(HordeJobFramework):
         job_info = f"✅ Received {job_id}"  # Replaced diamond emoji with '*' for better visual appeal
         job_col = f"{job_info:<20}"    # Fixed width of 21 chars to match status_msg in poppers.py
         model_col = f"{model_name:<16}"   # Reduced width to match thread_col in poppers.py
-        token_col = f"📊 {tokens} tokens"
+        token_col = f"📊{tokens} tokens"
         token_col_padded = f"{token_col:<16}"
         
         # Placeholder for task type
@@ -111,14 +111,14 @@ class ScribeHordeJob(HordeJobFramework):
             tokens_per_second = tokens_generated / gen_time
 
             if tokens_per_second >= 10:
-                speed_indicator = "🐇 Fast"
+                speed_indicator = "🐇Fast"
             elif tokens_per_second >= 5:
-                speed_indicator = "🚶 Moderate"
+                speed_indicator = "🚶Moderate"
             else:
-                speed_indicator = "�� Slow"
+                speed_indicator = "��Slow"
 
             speed_indicator_padded = f"{speed_indicator:<16}"
-            tps_col_padded = f"⚡ {tokens_per_second:<8.1f}TPS"
+            tps_col_padded = f"⚡  {tokens_per_second:<8.1f}TPS"
             logger.info(f"{complete_col}| {model_col}| {speed_indicator_padded}| {tps_col_padded}")
         except Exception as err:
             error_info = f"❌ Failed {job_id}"  # Even shorter message as requested
