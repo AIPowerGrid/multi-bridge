@@ -57,7 +57,7 @@ class ScribeHordeJob(HordeJobFramework):
         model_name = f"🧠 {model_name}"
         
         # Format job info to match waiting messages
-        job_info = f"🚀Received {job_id}"  # Even shorter message as requested
+        job_info = f"🔹Received {job_id}"  # Replaced '>' with a simpler emoji for better visual appeal
         job_col = f"{job_info:<21}"    # Fixed width of 21 chars to match status_msg in poppers.py
         model_col = f"{model_name:<16}"   # Reduced width to match thread_col in poppers.py
         token_col = f"📊 {tokens} tokens"
