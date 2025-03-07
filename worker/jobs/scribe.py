@@ -430,12 +430,19 @@ class ScribeHordeJob(HordeJobFramework):
         super().submit_job(endpoint=endpoint)
 
     def prepare_submit_payload(self):
+        """Prepare the payload for submission"""
+        # Ensure we always have an ID
+        if not hasattr(self, 'current_id') or not self.current_id:
+            logger.error("Missing job ID for submission")
+            self.status = JobStatus.DONE_FAULTED
+            return
+        
         self.submit_dict = {
             "id": self.current_id,
-            "generation": self.text,
-            "seed": self.seed,
+            "generation": self.text if self.text else "",
+            "seed": self.seed if hasattr(self, 'seed') and self.seed is not None else 0,
         }
-        if self.censored:
+        if hasattr(self, 'censored') and self.censored:
             self.submit_dict["state"] = self.censored
 
     def post_submit_tasks(self, submit_req):

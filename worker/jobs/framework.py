@@ -80,7 +80,16 @@ class HordeJobFramework:
                 self.out_of_memory = True
 
     def start_submit_thread(self):
-        """Start a new thread to submit the job result"""
+        """Start a thread to submit the job"""
+        if not hasattr(self, 'current_id'):
+            logger.error("Job missing current_id, cannot submit")
+            return
+        
+        # Ensure we have a valid ID before starting submission thread
+        if self.status == JobStatus.FAULTED and not hasattr(self, 'submit_dict'):
+            self.prepare_submit_payload()
+        
+        # Start the submission thread
         submit_thread = threading.Thread(target=self.submit_job)
         submit_thread.daemon = True
         submit_thread.start()
