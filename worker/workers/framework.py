@@ -30,7 +30,6 @@ class WorkerFramework:
         # These two should be filled in by the extending classes
         self.PopperClass = None
         self.JobClass = None
-        waiting_messages = ["⏳ Waiting for jobs..."]
 
     def on_restart(self):
         """Called when the worker loop is restarted. Make sure to invoke super().on_restart() when overriding."""

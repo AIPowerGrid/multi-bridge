@@ -140,33 +140,18 @@ class JobPopper:
                     model_name = model_name[:12] + "..."
                 last_job_str += f" [{model_name}]"
         
-        # Build status message with cool indicators
-        # Choose a random waiting message occasionally to add variety
-        waiting_messages = [
-            "⏳ Hunting for jobs...",
-            "⏳ Searching the grid...",
-            "⏳ Standing by...",
-            "⏳ Grid scanning...",
-            "⏳ Awaiting inference work..."
-        ]
+        # Use a single consistent waiting message
+        wait_msg = "⏳ Waiting for jobs.."
         
-        # Choose a message based on waiting time
-        waiting_time = current_time - _waiting_start_time
-        if waiting_time > 300:  # More than 5 minutes
-            waiting_idx = int((current_time // 30) % len(waiting_messages))  # Change message every 30 seconds
-            wait_msg = waiting_messages[waiting_idx]
-        else:
-            wait_msg = "⏳ Waiting for jobs.."
-            
         # COLUMN DEFINITIONS - all messages must adhere to these column widths
         # COL1: Status message (21 chars) | COL2: Thread info (18 chars) | COL3: Stats (variable)
         
-        # Format the status message with colorful indicators - note we use exactly 21 chars
+        # Format the status message with consistent width
         status_msg = f"{wait_msg:<20}"
         
-        # Format thread info - fixed width of 16 chars (reduced to tighten spacing)
+        # Format thread info - fixed width of 16 chars
         thread_msg = f"👥 Threads: {worker_count}/{self.bridge_data.max_threads}"
-        thread_col = f"{thread_msg:<16}"  # Reduced width to tighten spacing
+        thread_col = f"{thread_msg:<16}"
         
         # Build the message with consistent pipe spacing
         message_parts = [status_msg]
@@ -182,7 +167,7 @@ class JobPopper:
             for stat in stats_parts:
                 message_parts.append(f"| {stat}")
         
-        # Log the status with consistent formatting - pipes with exact spacing
+        # Log the status with consistent formatting
         formatted_message = "".join(message_parts)
         
         logger.info(formatted_message)
