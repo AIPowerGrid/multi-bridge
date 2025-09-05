@@ -28,5 +28,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('https://api.aipowergrid.io/')" || exit 1
 
-# Start the worker
-CMD ["python", "start_worker.py"]
+# Start the worker with environment variable support
+CMD ["python", "start_env.py"]
