@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  ai-power-grid-bridge:
+    build: .
+    container_name: ai-power-grid-bridge
+    restart: unless-stopped
+    environment:
+      # These will be overridden by Coolify environment variables
+      - HORDE_URL=${HORDE_URL:-https://api.aipowergrid.io/}
+      - API_KEY=${API_KEY}
+      - QUEUE_SIZE=${QUEUE_SIZE:-0}
+    volumes:
+      # Mount config file if needed
+      - ./bridgeData.yaml:/app/bridgeData.yaml:ro
+    # No ports exposed as this is a worker service
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('https://api.aipowergrid.io/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

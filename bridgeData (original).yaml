@@ -1,0 +1,81 @@
+## AIPG Simple Text Worker Template
+
+## Global Configuration
+
+# The horde url (defaults to https://api.aipowergrid.io/)
+horde_url: "https://api.aipowergrid.io/"
+
+# The api_key identifies a unique user in the horde
+# Visit https://stablehorde.net/register to create one before you can join
+api_key: "your-api-key-here"
+
+# We will keep this many requests in the queue so we can start working as soon as a thread is available
+# Recommended to keep no higher than 1
+queue_size: 0
+
+## Endpoints Configuration
+endpoints:
+  # OpenAI API endpoint
+  - type: "openai"
+    name: "openai-endpoint"
+    api_key: "your-openai-api-key"
+    url: "https://api.openai.com/v1"
+    models:
+      # Each model becomes a worker
+      - name: "gpt35-worker"
+        model: "gpt-3.5-turbo"
+        max_threads: 1
+        max_length: 512
+        max_context_length: 4096
+      
+      - name: "gpt4-worker"
+        model: "gpt-4"
+        max_threads: 1
+        max_length: 1024
+        max_context_length: 8192
+  
+  # DeepSeek API endpoint (OpenAI compatible)
+  - type: "openai"
+    name: "deepseek-endpoint"
+    api_key: "your-deepseek-api-key"
+    url: "https://api.deepseek.com/v1"
+    models:
+      - name: "deepseek-chat-worker"
+        model: "deepseek-chat"
+        max_threads: 1
+        max_length: 1024
+        max_context_length: 8192
+  
+  # Anthropic API endpoint (OpenAI compatible)
+  - type: "openai"
+    name: "anthropic-endpoint"
+    api_key: "your-anthropic-api-key"
+    url: "https://api.anthropic.com/v1"
+    models:
+      - name: "claude-sonnet-worker"
+        model: "claude-3-sonnet-20240229"
+        max_threads: 1
+        max_length: 4096
+        max_context_length: 16384
+  
+  # Ollama local API endpoint (OpenAI compatible)
+  - type: "openai"
+    name: "ollama-endpoint"
+    api_key: ""  # Not needed for Ollama
+    url: "http://localhost:11434/v1"
+    models:
+      - name: "llama3-worker"
+        model: "llama3"
+        max_threads: 1
+        max_length: 1024
+        max_context_length: 8192
+  
+  # KoboldAI endpoint (local)
+  - type: "koboldai"
+    name: "kobold-endpoint"
+    url: "http://localhost:5000"
+    models:
+      - name: "kobold-worker"
+        max_threads: 1
+        max_length: 512
+        max_context_length: 4096 

@@ -56,6 +56,10 @@ def parse_domain_from_url(url):
     # Remove other TLDs if needed
     domain = domain.split('.')[0]
     
+    # Special case for groq - return 'grid'
+    if domain == 'groq':
+        return 'grid'
+    
     # If we got openai as a domain, keep it as is
     if domain == 'openai':
         return domain

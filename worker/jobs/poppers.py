@@ -198,6 +198,11 @@ class ScribePopper(JobPopper):
         # This will already have the domain prefix from our modifications in start_worker.py
         self.available_models = [self.bridge_data.model_name]
         
+        # Special case: force groq prefix for Llama 4 model
+        if hasattr(bd, 'openai_model') and bd.openai_model == "meta-llama/llama-4-scout-17b-16e-instruct":
+            # Silently force the groq prefix
+            self.available_models = [f"groq/{bd.openai_model}"]
+        
         # Add branding if needed
         if hasattr(bd, 'branded_model') and bd.branded_model and hasattr(bd, 'username') and bd.username:
             self.available_models = [f"{self.available_models[0]}::{bd.username}"]

@@ -1,0 +1,31 @@
+# AI Power Grid Bridge Configuration for Coolify Deployment
+# This template uses environment variables for configuration
+
+# Global settings
+horde_url: ${HORDE_URL:-https://api.aipowergrid.io/}
+api_key: ${API_KEY}
+queue_size: ${QUEUE_SIZE:-0}
+
+# Endpoints configuration
+endpoints:
+  # OpenAI-compatible endpoint (if using OpenAI APIs)
+  - type: "openai"
+    name: "openai-endpoint"
+    api_key: ${OPENAI_API_KEY}
+    url: ${OPENAI_URL:-https://api.openai.com/v1}
+    models:
+      - name: "openai-worker"
+        model: ${OPENAI_MODEL:-gpt-3.5-turbo}
+        max_threads: ${OPENAI_MAX_THREADS:-1}
+        max_length: ${OPENAI_MAX_LENGTH:-512}
+        max_context_length: ${OPENAI_MAX_CONTEXT_LENGTH:-4096}
+
+  # KoboldAI endpoint (if using KoboldAI)
+  - type: "koboldai"
+    name: "koboldai-endpoint"
+    url: ${KAI_URL:-http://localhost:5000}
+    models:
+      - name: "koboldai-worker"
+        max_threads: ${KAI_MAX_THREADS:-1}
+        max_length: ${KAI_MAX_LENGTH:-512}
+        max_context_length: ${KAI_MAX_CONTEXT_LENGTH:-4096}

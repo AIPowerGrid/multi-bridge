@@ -98,6 +98,10 @@ def parse_domain_from_url(url):
     # Remove other TLDs if needed
     domain = domain.split('.')[0]
     
+    # Special case for groq - return 'grid'
+    if domain == 'groq':
+        return 'grid'
+    
     # If we got openai as a domain, keep it as is
     if domain == 'openai':
         return domain
@@ -157,6 +161,12 @@ def start_worker(endpoint_config, model_config, global_config):
         # Include a shortened URL for context
         short_url = bridge_data.openai_url.replace("https://", "").replace("http://", "").split("/")[0]
         print(f"🔌 Starting worker: {worker_name} using {domain_prefix}/{bridge_data.openai_model} ({short_url})")
+        
+        # Special case for Llama 4 models - use groq prefix instead of grid
+        if bridge_data.openai_model == "meta-llama/llama-4-scout-17b-16e-instruct":
+            domain_prefix = "groq"
+        elif ("llama-4" in bridge_data.openai_model.lower() or "meta-llama/llama-4" in bridge_data.openai_model.lower()) and domain_prefix == "grid":
+            domain_prefix = "groq"
         
         # Set the model_name with domain prefix
         bridge_data.model_name = f"{domain_prefix}/{bridge_data.openai_model}"

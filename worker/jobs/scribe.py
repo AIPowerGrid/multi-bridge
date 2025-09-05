@@ -388,6 +388,32 @@ class ScribeHordeJob(HordeJobFramework):
         prompt = payload.get("prompt", "")
         max_tokens = int(payload.get("max_length", 80))
         
+        # Only check for exact AIPG terms
+        aipg_terms = ["aipg", "ai power grid", "aipowergrid"]
+        
+        # Only inject if there's an exact match for AIPG terms
+        has_aipg_mention = any(term in prompt.lower() for term in aipg_terms)
+        
+        # Inject context only for direct AIPG mentions
+        if has_aipg_mention:
+            aipg_context = """AI Power Grid (AIPG) is a distributed network for AI workloads with native cryptocurrency incentives. Key points:
+
+• Platform: Distributed AI compute network built on AI Horde with workflow engine
+• Tokenomics: 150M max supply
+• Network: P2P port 8865, RPC port 9788, PoW/PoUW consensus
+• Links: aipowergrid.io, explorer.aipowergrid.io, pool.aipowergrid.io
+• Social: @AIPowerGrid (Twitter), t.me/AIPowerGrid (Telegram)
+• Meet founder: https://calendly.com/half-aipowergrid/30min"""
+            
+            # Prepend context to the prompt
+            prompt = f"{aipg_context}\n\nUser Query: {prompt}"
+            
+            # Also set expert system prompt
+            system_prompt = "You are a helpful assistant with expertise in AI Power Grid (AIPG). Provide concise, accurate information about the platform."
+        else:
+            # Default system prompt for non-AIPG queries
+            system_prompt = "You are a helpful assistant."
+        
         # Use OpenAI model from bridge data
         model = self.bridge_data.openai_model
         
@@ -396,10 +422,10 @@ class ScribeHordeJob(HordeJobFramework):
             openai_payload = {
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                "max_completion_tokens": max_tokens  # Correct parameter for o1-mini
+                "max_completion_tokens": max_tokens
             }
             logger.info(f"Using o1-mini with payload: {json.dumps(openai_payload, indent=2)}")
         else:
@@ -408,8 +434,11 @@ class ScribeHordeJob(HordeJobFramework):
             
             openai_payload = {
                 "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens,  # Correct parameter for other models
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": max_tokens,
                 "temperature": temperature,
                 "top_p": top_p
             }
